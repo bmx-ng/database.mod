@@ -1,0 +1,3 @@
+# generated using the following :
+
+dlltool -m arm64 -k -d libmariadb.def -l libmariadb.a
