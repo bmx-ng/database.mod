@@ -37,7 +37,6 @@ Import "-lodbc32"
 ?
 
 Import brl.blitz
-Import "odbchelper.c"
 
 Const SQL_AM_CONNECTION:Int = 1
 Const SQL_AM_NONE:Int = 0

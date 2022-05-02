@@ -575,12 +575,14 @@ Type TODBCResultSet Extends TQueryResultSet
 
 		' BIND stuff
 		Local values:TDBType[] = boundValues
+		Local strings:Byte Ptr[]
+		Local paramCount:Int
 
 		If values Then
-			Local paramCount:Int = bindCount
+			paramCount = bindCount
 
 			Local isNull:Int[] = New Int[paramCount]
-			Local strings:Byte Ptr[] = New Byte Ptr[paramCount]
+			strings = New Byte Ptr[paramCount]
 			
 			For Local i:Int = 0 Until paramCount
 
@@ -701,17 +703,19 @@ Type TODBCResultSet Extends TQueryResultSet
 
 			Next
 			
+		End If
+		
+		' execute the query
+		result = bmx_odbc_executePrepared(stmtHandle)
+
+		If strings Then
 			' free up the strings
 			For Local i:Int = 0 Until paramCount
 				If strings[i] Then
 					MemFree(strings[i])
 				End If
 			Next
-			
 		End If
-		
-		' execute the query
-		result = bmx_odbc_executePrepared(stmtHandle)
 		
 		If isSQLError(result) Then
 			TDBODBC(conn).processError(SQL_HANDLE_STMT, "Error executing statement", TDatabaseError.ERROR_STATEMENT, stmtHandle)

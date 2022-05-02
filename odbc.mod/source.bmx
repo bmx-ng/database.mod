@@ -158,3 +158,4 @@ Import "iodbc/iodbc/prepare.c"
 Import "iodbc/iodbc/result.c"
 Import "iodbc/iodbc/odbc3.c"
 
+Import "odbchelper.c"
