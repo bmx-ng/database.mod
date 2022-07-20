@@ -122,117 +122,134 @@ void bmx_mysql_deleteVals(char ** vals) {
 }
 
 void bmx_mysql_bind_null(MYSQL_BIND* bindings, int index) {
-
 	MYSQL_BIND* bind = &bindings[index];
 	bind->buffer_type = MYSQL_TYPE_NULL;
 }
 
-void bmx_mysql_bind_int(MYSQL_BIND* bindings, int index, int * value) {
+void bmx_mysql_bind_int(MYSQL_BIND* bindings, int index, int * value, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 	
 	bind->buffer_type = MYSQL_TYPE_LONG;
-	bind->buffer = value;
-	bind->buffer_length = sizeof(int);
-	bind->is_unsigned = 0;
+	if (!isNull) {
+		bind->buffer = value;
+		bind->buffer_length = sizeof(int);
+		bind->is_unsigned = 0;
+	}
 }
 
-void bmx_mysql_bind_float(MYSQL_BIND* bindings, int index, float * value) {
+void bmx_mysql_bind_float(MYSQL_BIND* bindings, int index, float * value, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_FLOAT;
-	bind->buffer = value;
-	bind->buffer_length = sizeof(float);
-	bind->is_unsigned = 0;
+	if (!isNull) {
+		bind->buffer = value;
+		bind->buffer_length = sizeof(float);
+		bind->is_unsigned = 0;
+	}
 }
 
-void bmx_mysql_bind_double(MYSQL_BIND* bindings, int index, double * value) {
+void bmx_mysql_bind_double(MYSQL_BIND* bindings, int index, double * value, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_DOUBLE;
-	bind->buffer = value;
-	bind->buffer_length = sizeof(double);
-	bind->is_unsigned = 0;
+	if (!isNull) {
+		bind->buffer = value;
+		bind->buffer_length = sizeof(double);
+		bind->is_unsigned = 0;
+	}
 }
 
-void bmx_mysql_bind_long(MYSQL_BIND* bindings, int index, long * value) {
+void bmx_mysql_bind_long(MYSQL_BIND* bindings, int index, long * value, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_LONGLONG;
-	bind->buffer = value;
-	bind->buffer_length = 8;
-	bind->is_unsigned = 0;
+	if (!isNull) {
+		bind->buffer = value;
+		bind->buffer_length = 8;
+		bind->is_unsigned = 0;
+	}
 }
 
-void bmx_mysql_bind_string(MYSQL_BIND* bindings, int index, char * value, int size) {
+void bmx_mysql_bind_string(MYSQL_BIND* bindings, int index, char * value, int size, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 	bind->buffer_type = MYSQL_TYPE_STRING;
-	bind->buffer = value;
-	bind->buffer_length = size;
 
-	bind->is_unsigned = 0;
+	if (!isNull) {
+		bind->buffer = value;
+		bind->buffer_length = size;
+
+		bind->is_unsigned = 0;
+	}
 }
 
-void bmx_mysql_bind_blob(MYSQL_BIND* bindings, int index, char * value, int size) {
+void bmx_mysql_bind_blob(MYSQL_BIND* bindings, int index, char * value, int size, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_BLOB;
-	bind->buffer = value;
-	bind->buffer_length = size;
 
-	bind->is_unsigned = 0;
+	if (!isNull) {
+		bind->buffer = value;
+		bind->buffer_length = size;
+
+		bind->is_unsigned = 0;
+	}
 }
 
-void bmx_mysql_bind_date(MYSQL_BIND* bindings, int index, MYSQL_TIME * date, unsigned int year, unsigned int month, unsigned int day) {
+void bmx_mysql_bind_date(MYSQL_BIND* bindings, int index, MYSQL_TIME * date, unsigned int year, unsigned int month, unsigned int day, my_bool * isNull) {
 
 	date->year = year;
 	date->month = month;
 	date->day = day;
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_DATE;
-	bind->buffer = (char *)date;
-	bind->buffer_length = sizeof(MYSQL_TIME);
 
+	if (!isNull) {
+		bind->buffer = (char *)date;
+		bind->buffer_length = sizeof(MYSQL_TIME);
+	}
 }
 
-void bmx_mysql_bind_time(MYSQL_BIND* bindings, int index, MYSQL_TIME * time, unsigned int hour, unsigned int minute, unsigned int second) {
+void bmx_mysql_bind_time(MYSQL_BIND* bindings, int index, MYSQL_TIME * time, unsigned int hour, unsigned int minute, unsigned int second, my_bool * isNull) {
 
 	time->hour = hour;
 	time->minute = minute;
 	time->second = second;
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_TIME;
-	bind->buffer = (char *)time;
-	bind->buffer_length = sizeof(MYSQL_TIME);
+	if (!isNull) {
+		bind->buffer = (char *)time;
+		bind->buffer_length = sizeof(MYSQL_TIME);
+	}
 }
 
 void bmx_mysql_bind_datetime(MYSQL_BIND* bindings, int index, MYSQL_TIME  * datetime,
-		unsigned int year, unsigned int month, unsigned int day, unsigned int hour, unsigned int minute, unsigned int second) {
+		unsigned int year, unsigned int month, unsigned int day, unsigned int hour, unsigned int minute, unsigned int second, my_bool * isNull) {
 
 	datetime->year = year;
 	datetime->month = month;
@@ -242,12 +259,15 @@ void bmx_mysql_bind_datetime(MYSQL_BIND* bindings, int index, MYSQL_TIME  * date
 	datetime->second = second;
 
 	MYSQL_BIND* bind = &bindings[index];
-	bind->is_null = (my_bool*)0;
+	bind->is_null = (my_bool*)isNull;
 	bind->length = 0;
 
 	bind->buffer_type = MYSQL_TYPE_DATETIME;
-	bind->buffer = (char *)datetime;
-	bind->buffer_length = sizeof(MYSQL_TIME);
+
+	if (!isNull) {
+		bind->buffer = (char *)datetime;
+		bind->buffer_length = sizeof(MYSQL_TIME);
+	}
 }
 
 void examine_bindings(MYSQL_BIND* bindings, int size, MYSQL_STMT *stmt) {

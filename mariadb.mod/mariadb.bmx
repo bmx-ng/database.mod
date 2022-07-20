@@ -31,11 +31,13 @@ about: A MariaDB database driver for #Database.Core
 End Rem
 Module Database.MariaDB
 
-ModuleInfo "Version: 1.00"
+ModuleInfo "Version: 1.01"
 ModuleInfo "Author: Bruce A Henderson"
 ModuleInfo "License: BSD"
 ModuleInfo "Copyright: Wrapper - 2007-2022 Bruce A Henderson"
 
+ModuleInfo "History: 1.01"
+ModuleInfo "History: Fixed setting Null binds"
 ModuleInfo "History: 1.00 Initial Release"
 
 ?win32x86
@@ -557,50 +559,56 @@ Type TMySQLResultSet Extends TQueryResultSet
 
 		Local strings:Byte Ptr[]
 		Local times:Byte Ptr[]
+		Local nulls:Byte[]
 
 		If paramCount = bindCount Then
 
 			strings = New Byte Ptr[paramCount]
 			times = New Byte Ptr[paramCount]
+			nulls = New Byte[paramCount]
 		
 			For Local i:Int = 0 Until paramCount
 
 				Local isNull:Int = False
-				
+				Local nullsPtr:Byte Ptr
+
 				If Not values[i] Or values[i].isNull() Then
 					isNull = True
-				Else
-					Select values[i].kind()
-						Case DBTYPE_INT
-							bmx_mysql_bind_int(parameterBindings, i, Varptr TDBInt(values[i]).value)
-						Case DBTYPE_FLOAT
-							bmx_mysql_bind_float(parameterBindings, i, Varptr TDBFloat(values[i]).value)
-						Case DBTYPE_DOUBLE
-							bmx_mysql_bind_double(parameterBindings, i, Varptr TDBDouble(values[i]).value)
-						Case DBTYPE_LONG
-							bmx_mysql_bind_long(parameterBindings, i, Varptr TDBLong(values[i]).value)
-						Case DBTYPE_STRING
-							local s:Byte Ptr = values[i].getString().ToUTF8String()
-							strings[i] = s
-							bmx_mysql_bind_string(parameterBindings, i, s, _strlen(s))
-							
-						Case DBTYPE_BLOB
-							bmx_mysql_bind_blob(parameterBindings, i, TDBBlob(values[i]).value, TDBBlob(values[i])._size)
-
-						Case DBTYPE_DATE
-							Local date:TDBDate = TDBDate(values[i])
-							times[i] = bmx_mysql_makeTime()
-							bmx_mysql_bind_date(parameterBindings, i, times[i], date.getYear(), date.getMonth(), date.getDay())
-						Case DBTYPE_DATETIME
-							Local date:TDBDateTime = TDBDateTime(values[i])
-							times[i] = bmx_mysql_makeTime()
-							bmx_mysql_bind_datetime(parameterBindings, i, times[i], date.getYear(), date.getMonth(), date.getDay(), date.getHour(), date.getMinute(), date.getSecond())
-						Case DBTYPE_TIME
-							Local date:TDBTime = TDBTime(values[i])
-							times[i] = bmx_mysql_makeTime()
-							bmx_mysql_bind_time(parameterBindings, i, times[i], date.getHour(), date.getMinute(), date.getSecond())
-					End Select
+					nulls[i] = 1
+					nullsPtr = Byte Ptr(nulls) + i
 				End If
+
+				Select values[i].kind()
+					Case DBTYPE_INT
+						bmx_mysql_bind_int(parameterBindings, i, Varptr TDBInt(values[i]).value, nullsPtr)
+					Case DBTYPE_FLOAT
+						bmx_mysql_bind_float(parameterBindings, i, Varptr TDBFloat(values[i]).value, nullsPtr)
+					Case DBTYPE_DOUBLE
+						bmx_mysql_bind_double(parameterBindings, i, Varptr TDBDouble(values[i]).value, nullsPtr)
+					Case DBTYPE_LONG
+						bmx_mysql_bind_long(parameterBindings, i, Varptr TDBLong(values[i]).value, nullsPtr)
+					Case DBTYPE_STRING
+						local s:Byte Ptr = values[i].getString().ToUTF8String()
+						strings[i] = s
+						bmx_mysql_bind_string(parameterBindings, i, s, _strlen(s), nullsPtr)
+						
+					Case DBTYPE_BLOB
+						bmx_mysql_bind_blob(parameterBindings, i, TDBBlob(values[i]).value, TDBBlob(values[i])._size, nullsPtr)
+
+					Case DBTYPE_DATE
+						Local date:TDBDate = TDBDate(values[i])
+						times[i] = bmx_mysql_makeTime()
+						bmx_mysql_bind_date(parameterBindings, i, times[i], date.getYear(), date.getMonth(), date.getDay(), nullsPtr)
+					Case DBTYPE_DATETIME
+						Local date:TDBDateTime = TDBDateTime(values[i])
+						times[i] = bmx_mysql_makeTime()
+						bmx_mysql_bind_datetime(parameterBindings, i, times[i], date.getYear(), date.getMonth(), date.getDay(), date.getHour(), date.getMinute(), date.getSecond(), nullsPtr)
+					Case DBTYPE_TIME
+						Local date:TDBTime = TDBTime(values[i])
+						times[i] = bmx_mysql_makeTime()
+						bmx_mysql_bind_time(parameterBindings, i, times[i], date.getHour(), date.getMinute(), date.getSecond(), nullsPtr)
+				End Select
+
 
 			Next
 
