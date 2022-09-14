@@ -404,7 +404,7 @@ Type TDBDate Extends TDBDateBase
 	Field _month:Int = 1
 	Field _day:Int = 1
 
-	Function Set:TDBDate(year:Int, Month:Int, day:Int)
+	Function Set:TDBDate(year:Int, Month:Int, day:Int) { nomangle }
 		Local this:TDBDate = New TDBDate 
 		this.setFromParts(year, Month, day)
 		Return this
@@ -516,13 +516,8 @@ Type TDBBlob Extends TDBType
 		_size = s
 		If copy And _size > 0 Then
 			_owner = True
-?bmxng
 			value = MemAlloc(Size_T(_size))
 			MemCopy(value, v, Size_T(_size))
-?Not bmxng
-			value = MemAlloc(_size)
-			MemCopy(value, v, _size)
-?
 		Else
 			value = v
 		End If
@@ -568,7 +563,7 @@ Type TDBDateTime Extends TDBDateBase
 	Field _second:Int
 	Field value:Long
 
-	Function Set:TDBDateTime(year:Int, Month:Int, day:Int, hours:Int, mins:Int, secs:Int)
+	Function Set:TDBDateTime(year:Int, Month:Int, day:Int, hours:Int, mins:Int, secs:Int) { nomangle }
 		Local this:TDBDateTime = New TDBDateTime
 		this.setFromParts(year, Month, day, hours, mins, secs)
 		Return this
@@ -670,7 +665,7 @@ Type TDBTime Extends TDBDateBase
 	Field _second:Int
 	Field value:Long
 
-	Function Set:TDBTime(hours:Int, mins:Int, secs:Int)
+	Function Set:TDBTime(hours:Int, mins:Int, secs:Int) { nomangle }
 		Local this:TDBTime = New TDBTime 
 		this.setFromParts(hours, mins, secs)
 		Return this
@@ -753,7 +748,7 @@ End Type
 
 Extern
 	Function _calcDateValue(value:Long Ptr, y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int)
-	Function 	_formatDate:String(format:String, y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int)
+	Function _formatDate:String(format:String, y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int)
 End Extern
 
 

@@ -34,6 +34,10 @@
 #include <mysql.h>
 #include <stdio.h>
 
+extern BBObject * database_core_dbtypes_TDBDateTime_Set(int year, int month, int day, int hours, int mins, int secs);
+extern BBObject * database_core_dbtypes_TDBDate_Set(int year, int month, int day);
+extern BBObject * database_core_dbtypes_TDBTime_Set(int hours, int mins, int secs);
+
 BBString * bmx_mysql_field_name(MYSQL_FIELD * field) {
 	return bbStringFromUTF8String(field->name);
 }
@@ -62,11 +66,11 @@ char * bmx_mysql_field_def(MYSQL_FIELD * field) {
 	return field->def;
 }
 
-unsigned long bmx_mysql_field_length(MYSQL_FIELD * field) {
+BBULONGINT bmx_mysql_field_length(MYSQL_FIELD * field) {
 	return field->length;
 }
 
-unsigned long bmx_mysql_field_max_length(MYSQL_FIELD * field) {
+BBULONGINT bmx_mysql_field_max_length(MYSQL_FIELD * field) {
 	return field->max_length;
 }
 
@@ -168,7 +172,7 @@ void bmx_mysql_bind_double(MYSQL_BIND* bindings, int index, double * value, my_b
 	}
 }
 
-void bmx_mysql_bind_long(MYSQL_BIND* bindings, int index, long * value, my_bool * isNull) {
+void bmx_mysql_bind_long(MYSQL_BIND* bindings, int index, BBInt64 * value, my_bool * isNull) {
 
 	MYSQL_BIND* bind = &bindings[index];
 	bind->is_null = (my_bool*)isNull;
@@ -213,7 +217,7 @@ void bmx_mysql_bind_blob(MYSQL_BIND* bindings, int index, char * value, int size
 	}
 }
 
-void bmx_mysql_bind_date(MYSQL_BIND* bindings, int index, MYSQL_TIME * date, unsigned int year, unsigned int month, unsigned int day, my_bool * isNull) {
+void bmx_mysql_bind_date(MYSQL_BIND* bindings, int index, MYSQL_TIME * date, int year, int month, int day, my_bool * isNull) {
 
 	date->year = year;
 	date->month = month;
@@ -231,7 +235,7 @@ void bmx_mysql_bind_date(MYSQL_BIND* bindings, int index, MYSQL_TIME * date, uns
 	}
 }
 
-void bmx_mysql_bind_time(MYSQL_BIND* bindings, int index, MYSQL_TIME * time, unsigned int hour, unsigned int minute, unsigned int second, my_bool * isNull) {
+void bmx_mysql_bind_time(MYSQL_BIND* bindings, int index, MYSQL_TIME * time, int hour, int minute, int second, my_bool * isNull) {
 
 	time->hour = hour;
 	time->minute = minute;
@@ -249,7 +253,7 @@ void bmx_mysql_bind_time(MYSQL_BIND* bindings, int index, MYSQL_TIME * time, uns
 }
 
 void bmx_mysql_bind_datetime(MYSQL_BIND* bindings, int index, MYSQL_TIME  * datetime,
-		unsigned int year, unsigned int month, unsigned int day, unsigned int hour, unsigned int minute, unsigned int second, my_bool * isNull) {
+	 int year, int month, int day, int hour, int minute,  int second, my_bool * isNull) {
 
 	datetime->year = year;
 	datetime->month = month;
@@ -284,10 +288,6 @@ void examine_bindings(MYSQL_BIND* bindings, int size, MYSQL_STMT *stmt) {
 
 int bmx_mysql_rowField_isNull(MYSQL_ROW row, int index) {
 	return ((row[index] == NULL) || (!row[index])) ? 1 : 0;
-}
-
-unsigned long bmx_mysql_getLength(unsigned long * lengths, int index) {
-	return lengths[index];
 }
 
 char * bmx_mysql_rowField_chars(MYSQL_ROW row, int index) {
@@ -364,4 +364,30 @@ float bmx_mysql_char_to_float(char * data) {
 
 double bmx_mysql_char_to_double(char * data) {
 	return *(double*)data;
+}
+
+BBObject * bmx_mysql_char_to_datetime(char * data) {
+	MYSQL_TIME * dt = (MYSQL_TIME*)data;
+	return database_core_dbtypes_TDBDateTime_Set(dt->year, dt->month, dt->day, dt->hour, dt->minute, dt->second);
+}
+
+BBObject * bmx_mysql_char_to_date(char * data) {
+	MYSQL_TIME * dt = (MYSQL_TIME*)data;
+	return database_core_dbtypes_TDBDate_Set(dt->year, dt->month, dt->day);
+}
+
+BBObject * bmx_mysql_char_to_time(char * data) {
+	MYSQL_TIME * dt = (MYSQL_TIME*)data;
+	return database_core_dbtypes_TDBTime_Set(dt->hour, dt->minute, dt->second);
+}
+
+size_t bmx_mysql_length_for_field(MYSQL_FIELD * field) {
+	size_t length = field->length;
+	if ( field->type == MYSQL_TYPE_DATE
+			|| field->type == MYSQL_TYPE_DATETIME
+			|| field->type == MYSQL_TYPE_TIMESTAMP
+			|| field->type == MYSQL_TYPE_TIME ) {
+		length = sizeof(MYSQL_TIME);
+	}
+	return length;
 }

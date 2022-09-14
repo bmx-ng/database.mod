@@ -26,6 +26,7 @@
 SuperStrict
 
 Import BRL.Blitz
+Import Database.Core
 
 ?linux
 Import "-L/usr/lib/mysql"
@@ -108,7 +109,7 @@ Extern
 	Function mysql_stmt_result_metadata:Byte Ptr(stmt:Byte Ptr)
 	
 	Function mysql_num_fields:Int(meta:Byte Ptr)
-	Function mysql_fetch_lengths:Byte Ptr(result:Byte Ptr)
+	Function mysql_fetch_lengths:ULongInt Ptr(result:Byte Ptr)
 	Function mysql_fetch_field:Byte Ptr(meta:Byte Ptr)
 	Function mysql_stmt_store_result:Int(stmt:Byte Ptr)
 	
@@ -123,12 +124,13 @@ Extern
 	Function bmx_mysql_field_db:Byte Ptr(f:Byte Ptr)
 	Function bmx_mysql_field_catalog:Byte Ptr(f:Byte Ptr)
 	Function bmx_mysql_field_def:Byte Ptr(f:Byte Ptr)
-	Function bmx_mysql_field_length:Int(f:Byte Ptr)
-	Function bmx_mysql_field_max_length:Int(f:Byte Ptr)
+	Function bmx_mysql_field_length:ULongInt(f:Byte Ptr)
+	Function bmx_mysql_field_max_length:ULongInt(f:Byte Ptr)
 	Function bmx_mysql_field_flags:Int(f:Byte Ptr)
 	Function bmx_mysql_field_type:Int(f:Byte Ptr)
 	Function bmx_mysql_field_decimals:Int(f:Byte Ptr)
-	
+	Function bmx_mysql_length_for_field:Size_T(f:Byte Ptr)
+
 	Function bmx_mysql_makeBindings:Byte Ptr(size:Int)
 	Function bmx_mysql_deleteBindings(bindings:Byte Ptr)
 	'Function bmx_mysql_makeBools:Byte Ptr(size:Int)
@@ -149,11 +151,11 @@ Extern
 	Function bmx_mysql_deleteVals(vals:Byte Ptr)
 	
 	Function examine_bindings(params:Byte Ptr, size:Int, stmt:Byte Ptr)
-	Function bmx_mysql_getLength:Int(lengths:Byte Ptr, index:Int)
+	'Function bmx_mysql_getLength:Int(lengths:Byte Ptr, index:Int)
 	Function bmx_mysql_rowField_isNull:Int(row:Byte Ptr, index:Int)
 	Function bmx_mysql_rowField_chars:Byte Ptr(row:Byte Ptr, index:Int)
 	
-	Function bmx_mysql_inbind(params:Byte Ptr, index:Int, _field:Byte Ptr, dataValue:Byte Ptr, dataLength:Int Ptr, isNull:Int Ptr, ty:Int)
+	Function bmx_mysql_inbind(params:Byte Ptr, index:Int, _field:Byte Ptr, dataValue:Byte Ptr, dataLength:ULongInt Ptr, isNull:Int Ptr, ty:Int)
 	Function bmx_mysql_stmt_bind_result:Int(stmt:Byte Ptr, bindings:Byte Ptr)
 	Function bmx_mysql_stmt_fetch:Int(stmt:Byte Ptr)
 	
@@ -176,6 +178,9 @@ Extern
 	Function bmx_mysql_char_to_long:Long(data:Byte Ptr)
 	Function bmx_mysql_char_to_float:Float(data:Byte Ptr)
 	Function bmx_mysql_char_to_double:Double(data:Byte Ptr)
+	Function bmx_mysql_char_to_datetime:TDBDateTime(data:Byte Ptr)
+	Function bmx_mysql_char_to_date:TDBDate(data:Byte Ptr)
+	Function bmx_mysql_char_to_time:TDBTime(data:Byte Ptr)
 
 End Extern
 

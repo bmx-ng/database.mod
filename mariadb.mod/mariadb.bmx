@@ -56,8 +56,6 @@ ModuleInfo "CC_OPTS: `pkg-config --cflags libmariadb`"
 ModuleInfo "LD_OPTS: `pkg-config --libs-only-L libmariadb`"
 ?
 
-Import Database.Core
-
 Import "common.bmx"
 
 Type TDBMariaDB Extends TDBConnection
@@ -362,8 +360,8 @@ Type TMySQLField
 
 	Field mySQLField:Byte Ptr
 	Field dataValue:Byte Ptr
-	Field dataLength:Int
-	Field isNull:Int
+	Field dataLength:ULongInt
+	Field isNull:Byte
 	Field flag:Int
 
 	Method clear()
@@ -515,7 +513,8 @@ Type TMySQLResultSet Extends TQueryResultSet
 				mySQLFields[i].mySQLField = _field
 				mySQLFields[i].dataLength = bmx_mysql_field_length(_field) + 1
 				' make some space for the data...
-				mySQLFields[i].dataValue = MemAlloc(Size_T(mySQLFields[i].dataLength))
+				Local size:Size_T = bmx_mysql_length_for_field(_field)
+				mySQLFields[i].dataValue = MemAlloc(size)
 				
 				Local ty:Int = bmx_mysql_field_type(_field)
 				' build result set field information
@@ -750,11 +749,11 @@ Type TMySQLResultSet Extends TQueryResultSet
 							values[i] = New TDBDouble
 							values[i].setDouble(bmx_mysql_char_to_double(mySQLFields[i].dataValue))
 						Case DBTYPE_DATE
-							values[i] = TDBDate.SetFromString(String.fromBytes(mySQLFields[i].dataValue, fieldLength))
+							values[i] = bmx_mysql_char_to_date(mySQLFields[i].dataValue)
 						Case DBTYPE_DATETIME
-							values[i] = TDBDateTime.SetFromString(String.fromBytes(mySQLFields[i].dataValue, fieldLength))
+							values[i] = bmx_mysql_char_to_datetime(mySQLFields[i].dataValue)
 						Case DBTYPE_TIME
-							values[i] = TDBTime.SetFromString(String.fromBytes(mySQLFields[i].dataValue, fieldLength))
+							values[i] = bmx_mysql_char_to_time(mySQLFields[i].dataValue)
 						Case DBTYPE_BLOB
 							values[i] = TDBBlob.Set(mySQLFields[i].dataValue, fieldLength)
 						Default
@@ -766,10 +765,9 @@ Type TMySQLResultSet Extends TQueryResultSet
 				
 			Else
 				' a non-prepared query
-				
 				If Not bmx_mysql_rowField_isNull(row, i) Then
 				
-					Local fieldLength:Int = bmx_mysql_getLength(mysql_fetch_lengths(resultHandle), i)
+					Local fieldLength:Int = Int(mysql_fetch_lengths(resultHandle)[i])
 				
 					Select rec.fields[i].fType
 						Case DBTYPE_INT
@@ -869,16 +867,16 @@ Type TMySQLResultSet Extends TQueryResultSet
 			resultHandle = Null
 		End If
 		
-		If stmtHandle Then
-			If bmx_mysql_stmt_close(stmtHandle) Then
-			
-			End If
-			stmtHandle = Null
-		End If
-		
 		If metaHandle Then
 			mysql_free_result(metaHandle)
 			metaHandle = Null
+		End If
+		
+		If stmtHandle Then
+			If bmx_mysql_stmt_close(stmtHandle) Then
+				'
+			End If
+			stmtHandle = Null
 		End If
 		
 		If parameterBindings Then
