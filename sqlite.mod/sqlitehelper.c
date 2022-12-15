@@ -40,9 +40,9 @@ void bmx_sqlite3_last_insert_rowid(sqlite3 * handle , BBInt64 * value) {
 
 
 int bmx_sqlite3_bind_text64(sqlite3_stmt * handle , int index, const char * value, BBInt64 size, int how) {
-	return sqlite3_bind_text64(handle, index, value, size, (int)how, SQLITE_UTF8);
+	return sqlite3_bind_text64(handle, index, value, size, (sqlite3_destructor_type)how, SQLITE_UTF8);
 }
 
 int bmx_sqlite3_bind_blob64(sqlite3_stmt * handle , int index, const void * value, BBInt64 size, int how) {
-	return sqlite3_bind_blob64(handle, index, value, size, (int)how);
+	return sqlite3_bind_blob64(handle, index, value, size, (sqlite3_destructor_type)how);
 }
