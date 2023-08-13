@@ -30,6 +30,7 @@ Import "iodbc/iodbcinst/*.h"
 Import "iodbc/iodbcadm/*.h"
 Import "iodbc/iodbc/*.h"
 Import "iodbc/iodbc/trace/*.h"
+Import "include/*.h"
 
 Import "iodbc/iodbcinst/SQLGetConfigMode.c"
 Import "iodbc/iodbcinst/SQLGetPrivateProfileString.c"
