@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2022 Bruce A Henderson
+' Copyright (c) 2007-2023 Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -95,6 +95,8 @@ Const SQLITE_OPEN_FULLMUTEX:Int =        $00010000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_SHAREDCACHE:Int =      $00020000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_PRIVATECACHE:Int =     $00040000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_WAL:Int =              $00080000  ' VFS only
+Const SQLITE_OPEN_NOFOLLOW:Int =         $01000000  ' Ok for sqlite3_open_v2()
+Const SQLITE_OPEN_EXRESCODE:Int =        $02000000  ' Extended result codes
 
 ' Externs
 Extern

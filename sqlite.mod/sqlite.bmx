@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2022 Bruce A Henderson
+' Copyright (c) 2007-2023 Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -31,13 +31,15 @@ about: An SQLite database driver for #Database.Core
 End Rem
 Module Database.SQLite
 
-ModuleInfo "Version: 1.20"
+ModuleInfo "Version: 1.21"
 ModuleInfo "Author: Bruce A Henderson"
 ModuleInfo "License: BSD"
-ModuleInfo "Copyright: Wrapper - 2007-2022 Bruce A Henderson"
+ModuleInfo "Copyright: Wrapper - 2007-2023 Bruce A Henderson"
 ModuleInfo "Copyright: SQLite - The original author of SQLite has dedicated the code to the public domain. Anyone is free to copy, modify, publish, use, compile, sell, or distribute the original SQLite code, either in source code form or as a compiled binary, for any purpose, commercial or non-commercial, and by any means."
 ModuleInfo "Modserver: BRL"
 
+ModuleInfo "History: 1.21"
+ModuleInfo "History: Update to SQLite 3.44.2."
 ModuleInfo "History: 1.20"
 ModuleInfo "History: Update to SQLite 3.38.5."
 ModuleInfo "History: 1.19"
