@@ -1,0 +1,61 @@
+![PostgreSQL](postgresql_logo.png)
+
+The PostgreSQL database driver allows you to connect to PostgreSQL databases through the standard API provided by the Database Framework module.
+
+## Requirements
+
+You will need the PostgreSQL (libpq) client libraries installed. Instructions to do this varies depending on your platform.
+
+### Platform Specifics
+
+#### Windows
+
+Windows installers are available from the [PostgreSQL website](https://www.postgresql.org/download/windows/).
+
+The libpq client library is not required to build, but is required to run the application.
+
+You will likely need to add the PostgreSQL bin directory to your PATH environment variable.
+
+#### Linux
+
+For compiliation on Linux, you will need to install the PostgreSQL "dev" packages. On Ubuntu and Debian, this can be done with the following command:
+
+```
+sudo apt install libpq-dev
+```
+
+Once installed, the build should be able to determine the correct location of the PostgreSQL libraries.
+
+#### MacOS
+
+The PostgreSQL database driver assumes you will be using the [Homebrew](http://brew.sh/) package manager to install the PostgreSQL client libraries.
+
+This can be done using the following command :
+    
+```
+brew install libpq
+```
+
+Depending on which version of libpq gets installed, you may need to modify the module source code to point to the correct location of the PostgreSQL libraries.
+
+
+
+## Accessing a PostgreSQL Database
+
+To enable a PostgreSQL connection, you simply pass a *dbtype* of **POSTGRESQL** to the #LoadDatabase function.
+
+The *dbname* parameter refers to the name of the database you wish to connect to.
+
+The *host* and *port* parameters are optional if you are connecting to a local PostgreSQL server.
+
+*user* and *password* should be filled in as required.
+
+## Prepared Statement Placeholders
+
+PostgreSQL placeholders are defined by the form $n. Where n is a number starting at 1. (for example, $1, would be the first parameter).
+
+Remember that the Database Framework bindings start at 0, rather than 1, so in the code, binding to 0 would actual bind to the placeholder $1.
+
+## SQL with PostgreSQL
+
+For a complete guide to the PostgreSQL syntax, you can browse the excellent online documentation [here](http://www.postgresql.org/).
