@@ -416,14 +416,13 @@ Type TMySQLResultSet Extends TQueryResultSet
 		preparedQuery = False
 		
 		Local q:Byte Ptr = statement.ToUTF8String()
+		Local query:Int = mysql_real_query(conn.handle, q, _strlen(q)) Then
+		MemFree(q)
 		
-		If mysql_real_query(conn.handle, q, _strlen(q)) Then
-			MemFree(q)
+		If query
 			conn.setError("Error executing query", String.FromUTF8String(mysql_error(conn.handle)), TDatabaseError.ERROR_STATEMENT, mysql_errno(conn.handle))
 			Return False
 		End If
-		
-		MemFree(q)
 		
 		resultHandle = mysql_store_result(conn.handle)
 		
