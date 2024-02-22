@@ -418,6 +418,7 @@ Type TMySQLResultSet Extends TQueryResultSet
 		Local q:Byte Ptr = statement.ToUTF8String()
 		
 		If mysql_real_query(conn.handle, q, _strlen(q)) Then
+			MemFree(q)
 			conn.setError("Error executing query", String.FromUTF8String(mysql_error(conn.handle)), TDatabaseError.ERROR_STATEMENT, mysql_errno(conn.handle))
 			Return False
 		End If
