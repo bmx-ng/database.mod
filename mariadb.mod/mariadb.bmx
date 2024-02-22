@@ -422,6 +422,8 @@ Type TMySQLResultSet Extends TQueryResultSet
 			Return False
 		End If
 		
+		MemFree(q)
+		
 		resultHandle = mysql_store_result(conn.handle)
 		
 		If Not resultHandle And mysql_field_count(conn.handle) > 0 Then
