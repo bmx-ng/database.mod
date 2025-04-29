@@ -566,7 +566,7 @@ Type TSQLiteResultSet Extends TQueryResultSet
 		
 		Local q:Byte Ptr = query.ToUTF8String()
 		
-		Local result:Int = sqlite3_prepare_v2(TDBSQLite(conn).handle, q, _strlen(q) , Varptr stmtHandle, 0)
+		Local result:Int = sqlite3_prepare_v2(TDBSQLite(conn).handle, q, _strlen(q) , Varptr stmtHandle, Null)
 		MemFree(q)
 		If result <> SQLITE_OK Then
 			conn.setError("Error preparing statement", String.FromUTF8String(sqlite3_errmsg(TDBSQLite(conn).handle)), TDatabaseError.ERROR_STATEMENT, result)

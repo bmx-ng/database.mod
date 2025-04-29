@@ -102,7 +102,7 @@ Const SQLITE_OPEN_EXRESCODE:Int =        $02000000  ' Extended result codes
 Extern
 	Function sqlite3_close:Int(handle:Byte Ptr)
 	Function sqlite3_open_v2:Int(dhname:Byte Ptr, handle:Byte Ptr, flags:Int, fvs:Byte Ptr)
-	Function sqlite3_prepare_v2:Int(dbhandle:Byte Ptr, sql:Byte Ptr, size:Int, stmtHandle:Byte Ptr Ptr, pzTail:Int)
+	Function sqlite3_prepare_v2:Int(dbhandle:Byte Ptr, sql:Byte Ptr, size:Int, stmtHandle:Byte Ptr Ptr, pzTail:Byte Ptr Ptr)
 	Function sqlite3_finalize(stmtHandle:Byte Ptr)
 	Function sqlite3_reset:Int(stmtHandle:Byte Ptr)
 	Function sqlite3_step:Int(stmtHandle:Byte Ptr)
