@@ -49,6 +49,9 @@ ModuleInfo "LD_OPTS: -L%PWD%/lib/win32arm"
 ?win32arm64
 ModuleInfo "LD_OPTS: -L%PWD%/lib/win32arm64"
 ?macos
+' Note : Assumes you are using homebrew on macOS.
+'        brew install pkgconf
+'        brew install mariadb
 ModuleInfo "CC_OPTS: `pkg-config --cflags libmariadb`"
 ModuleInfo "LD_OPTS: `pkg-config --libs-only-L libmariadb`"
 ?linux
@@ -416,7 +419,7 @@ Type TMySQLResultSet Extends TQueryResultSet
 		preparedQuery = False
 		
 		Local q:Byte Ptr = statement.ToUTF8String()
-		Local query:Int = mysql_real_query(conn.handle, q, _strlen(q)) Then
+		Local query:Int = mysql_real_query(conn.handle, q, _strlen(q))
 		MemFree(q)
 		
 		If query
