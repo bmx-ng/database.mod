@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2023 Bruce A Henderson
+' Copyright (c) 2007-2026 Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -31,13 +31,17 @@ about: An SQLite database driver for #Database.Core
 End Rem
 Module Database.SQLite
 
-ModuleInfo "Version: 1.21"
+ModuleInfo "Version: 1.22"
 ModuleInfo "Author: Bruce A Henderson"
 ModuleInfo "License: BSD"
-ModuleInfo "Copyright: Wrapper - 2007-2023 Bruce A Henderson"
+ModuleInfo "Copyright: Wrapper - 2007-2026 Bruce A Henderson"
 ModuleInfo "Copyright: SQLite - The original author of SQLite has dedicated the code to the public domain. Anyone is free to copy, modify, publish, use, compile, sell, or distribute the original SQLite code, either in source code form or as a compiled binary, for any purpose, commercial or non-commercial, and by any means."
 ModuleInfo "Modserver: BRL"
 
+ModuleInfo "History: 1.22"
+ModuleInfo "History: Update to SQLite 3.53.0."
+ModuleInfo "History: Enabled Full Text Search (FTS5)."
+ModuleInfo "History: User/Authentication support in SQLite was removed."
 ModuleInfo "History: 1.21"
 ModuleInfo "History: Update to SQLite 3.44.2."
 ModuleInfo "History: 1.20"
@@ -97,7 +101,7 @@ ModuleInfo "History: Added hasPrepareSupport() and hasTransactionSupport() metho
 ModuleInfo "History: 1.00 Initial Release"
 ModuleInfo "History: Includes SQLite 3.3.13 source."
 
-ModuleInfo "CC_OPTS: -DSQLITE_USER_AUTHENTICATION"
+ModuleInfo "CC_OPTS: -DSQLITE_ENABLE_FTS5"
 ModuleInfo "CC_OPTS: -DSQLITE_DQS=0" ' deactivates the double-quoted string literal "misfeature". see https://www.sqlite.org/quirks.html#dblquote
 
 Import Database.Core
@@ -131,7 +135,7 @@ Type TDBSQLite Extends TDBConnection
 		
 	End Function
 
-	Method close()
+	Method close() Override
 	
 		clearQueries()
 	
@@ -148,7 +152,7 @@ Type TDBSQLite Extends TDBConnection
 		
 	End Method
 	
-	Method commit:Int()
+	Method commit:Int() Override
 	
 		If Not _isOpen Then
 			Return False
@@ -170,7 +174,7 @@ Type TDBSQLite Extends TDBConnection
 		Return True
 	End Method
 
-	Method getTables:String[]()
+	Method getTables:String[]() Override
 		Local list:String[]
 
 		If Not _isOpen Then
@@ -202,7 +206,7 @@ Type TDBSQLite Extends TDBConnection
 		Return list
 	End Method
 	
-	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False)
+	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False) Override
 		If Not _isOpen Then
 			Return Null
 		End If
@@ -255,11 +259,11 @@ Type TDBSQLite Extends TDBConnection
 		Return table
 	End Method
 
-	Method open:Int(user:String = Null, pass:String = Null)
+	Method Open:Int(user:String,pass:String) Override
 	
 		' close if the connection is already open
 		If _isOpen Then
-			close()
+			Close()
 		End If
 		
 		Local s:Byte Ptr = _dbname.ToUTF8String()
@@ -272,20 +276,6 @@ Type TDBSQLite Extends TDBConnection
 		
 		If ret = SQLITE_OK Then
 			_isOpen = True
-			
-			' authenticate
-			If _user Then
-				Local u:Byte Ptr = _user.ToUTF8String()
-				Local p:Byte Ptr = _password.ToUTF8String()
-				ret = sqlite3_user_authenticate(handle, u, p, _strlen(p))
-				MemFree(p)
-				MemFree(u)
-				
-				If ret <> SQLITE_OK Then
-					setError("Error authenticating user", Null, TDatabaseError.ERROR_CONNECTION, ret)
-				End If
-			End If
-
 			Return True
 		Else
 			setError("Error opening database", Null, TDatabaseError.ERROR_CONNECTION, ret)
@@ -432,69 +422,7 @@ Type TDBSQLite Extends TDBConnection
 			End If
 		Next
 	End Method
-	
-	Method addUser(username:String, password:String, isAdmin:Int = False)
-		If username Then
-			Local n:Byte Ptr = username.ToUTF8String()
-			Local p:Byte Ptr
-			Local plen:Int
-			If password Then
-				p = password.ToUTF8String()
-				plen = _strlen(p)
-			End If
 		
-			Local res:Int = sqlite3_user_add(handle, n, p, plen, isAdmin)
-			
-			If p Then
-				MemFree(p)
-			End If
-			MemFree(n)
-
-			If res <> SQLITE_OK Then
-				setError("Error adding user", Null, TDatabaseError.ERROR_CONNECTION, res)
-			End If
-		
-		End If
-	End Method
-	
-	Method modifyUser(username:String, password:String, isAdmin:Int = False)
-		If username Then
-			Local n:Byte Ptr = username.ToUTF8String()
-			Local p:Byte Ptr
-			Local plen:Int
-			If password Then
-				p = password.ToUTF8String()
-				plen = _strlen(p)
-			End If
-		
-			Local res:Int = sqlite3_user_change(handle, n, p, plen, isAdmin)
-			
-			If p Then
-				MemFree(p)
-			End If
-			MemFree(n)
-
-			If res <> SQLITE_OK Then
-				setError("Error changing user", Null, TDatabaseError.ERROR_CONNECTION, res)
-			End If
-		
-		End If
-	End Method
-	
-	Method deleteUser(username:String)
-		If username Then
-			Local n:Byte Ptr = username.ToUTF8String()
-
-			Local res:Int = sqlite3_user_delete(handle, n)
-			
-			MemFree(n)
-
-			If res <> SQLITE_OK Then
-				setError("Error deleting user", Null, TDatabaseError.ERROR_CONNECTION, res)
-			End If
-		EndIf
-	End Method
-	
 End Type
 
 
