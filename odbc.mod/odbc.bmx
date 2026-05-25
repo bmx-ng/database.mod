@@ -64,6 +64,7 @@ ModuleInfo "History: Includes iODBC 3.52.5 source for Linux/MacOS module."
 ?linux
 ModuleInfo "CC_OPTS: -DHAVE_CONFIG_H"
 ?
+ModuleInfo "CC_OPTS: -DUNICODE=1 -DSQL_NOUNICODEMAP"
 
 Import Database.Core
 Import BRL.StringBuilder
@@ -226,6 +227,11 @@ Type TDBODBC Extends TDBConnection
 	End Method
 
 	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False)
+		' TODO
+	End Method
+
+	Method tableExists:Int(tableName:String) Override
+		' TODO
 	End Method
 
 	Method open:Int(user:String = Null, pass:String = Null)

@@ -36,7 +36,7 @@ This can be done using the following command :
 brew install libpq
 ```
 
-Depending on which version of libpq gets installed, you may need to modify the module source code to point to the correct location of the PostgreSQL libraries.
+Once installed, the build should be able to determine the correct location of the PostgreSQL libraries.
 
 
 

@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2022 Bruce A Henderson
+' Copyright (c) 2007-2026 Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -30,12 +30,14 @@ bbdoc: Database Framework
 End Rem
 Module Database.Core
 
-ModuleInfo "Version: 1.09"
+ModuleInfo "Version: 1.10"
 ModuleInfo "Author: Bruce A Henderson"
 ModuleInfo "License: BSD"
 ModuleInfo "Copyright: Bruce A Henderson"
 ModuleInfo "Modserver: BRL"
 
+ModuleInfo "History: 1.10"
+ModuleInfo "History: Added UInt, ULong and Decimal support to TDBType."
 ModuleInfo "History: 1.09"
 ModuleInfo "History: Refactored use of 'enum'."
 ModuleInfo "History: 1.08"
@@ -118,19 +120,25 @@ Type TDBConnection Abstract
 	
 	Rem
 	bbdoc: Commits a database transaction.
-	returns: True if successful.
+	returns: #True if successful.
 	about: Calling this method is only valid for a previous call to #startTransaction.
 	<p>Check #hasError and #error for details of any problems.</p>
 	End Rem
 	Method commit:Int() Abstract
 	
 	Rem
+	bbdoc: Determines if a table exists in the database.
+	returns: #True if the table exists.
+	End Rem
+	Method tableExists:Int(tableName:String) Abstract
+
+	Rem
 	bbdoc: Returns a list of table names for the current database.
 	End Rem
 	Method getTables:String[]() Abstract
 
 	Rem
-	bbdoc: 
+	bbdoc: Returns a #TDBTable object for the specified table name, or Null if the table doesn't exist.
 	End Rem	
 	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False) Abstract
 	
@@ -527,6 +535,14 @@ Type TDatabaseQuery
 		bindValue(position, TDBString.Set(value))
 	End Method
 
+	Method setByte(position:Int, value:Byte)
+		bindValue(position, TDBByte.Set(value))
+	End Method
+
+	Method setShort(position:Int, value:Short)
+		bindValue(position, TDBShort.Set(value))
+	End Method
+
 	Rem
 	bbdoc: Binds the Int @value at the specified @position.
 	about: If a bind value already exists at the specified @position, it is replaced with the new one.
@@ -535,12 +551,20 @@ Type TDatabaseQuery
 		bindValue(position, TDBInt.Set(value))
 	End Method
 
+	Method setUInt(position:Int, value:UInt)
+		bindValue(position, TDBUInt.Set(value))
+	End Method
+
 	Rem
 	bbdoc: Binds the Long @value at the specified @position.
 	about: If a bind value already exists at the specified @position, it is replaced with the new one.
 	End Rem
 	Method setLong(position:Int, value:Long)
 		bindValue(position, TDBLong.Set(value))
+	End Method
+
+	Method setULong(position:Int, value:ULong)
+		bindValue(position, TDBULong.Set(value))
 	End Method
 
 	Rem
@@ -565,6 +589,22 @@ Type TDatabaseQuery
 	End Rem
 	Method addString(value:String)
 		addBindValue(TDBString.Set(value))
+	End Method
+
+	Rem
+	bbdoc: Adds a new #Byte bind value.
+	about: The value is added to the end of the current list of bind values.
+	End Rem
+	Method addByte(value:Byte)
+		addBindValue(TDBByte.Set(value))
+	End Method
+
+	Rem
+	bbdoc: Adds a new #Short bind value.
+	about: The value is added to the end of the current list of bind values.
+	End Rem
+	Method addShort(value:Short)
+		addBindValue(TDBShort.Set(value))
 	End Method
 
 	Rem
@@ -597,6 +637,34 @@ Type TDatabaseQuery
 	End Rem
 	Method addDouble(value:Double)
 		addBindValue(TDBDouble.Set(value))
+	End Method
+
+	Rem
+	bbdoc: Adds a new UInt bind value.
+	about: The value is added to the end of the current list of bind values.
+	End Rem
+	Method addUInt(value:UInt)
+		addBindValue(TDBUInt.Set(value))
+	End Method
+
+	Rem
+	bbdoc: Adds a new ULong bind value.
+	about: The value is added to the end of the current list of bind values.
+	End Rem
+	Method addULong(value:ULong)
+		addBindValue(TDBULong.Set(value))
+	End Method
+
+	Rem
+	bbdoc: Adds a new Decimal bind value.
+	about: The value is added to the end of the current list of bind values.
+	End Rem
+	Method addDecimal(value:TDecimal)
+		addBindValue(TDBDecimal.Set(value))
+	End Method
+
+	Method addNull()
+		addBindValue(Null)
 	End Method
 
 	Rem
@@ -1036,6 +1104,27 @@ Type TQueryRecord
 		End If
 	End Method
 
+	Method getUInt:UInt(index:Int)
+		Local v:TDBType = value(index)
+		If v Then
+			Return v.getUInt()
+		End If
+	End Method
+
+	Method getULong:ULong(index:Int)
+		Local v:TDBType = value(index)
+		If v Then
+			Return v.getULong()
+		End If
+	End Method
+
+	Method getDecimal:TDecimal(index:Int)
+		Local v:TDBType = value(index)
+		If v Then
+			Return v.getDecimal()
+		End If
+	End Method
+
 	Method clear()
 		If fields Then
 			For Local i:Int = 0 Until fields.length
@@ -1288,126 +1377,6 @@ End Type
 Extern
 	Function _strlen:Int(s:Byte Ptr) = "strlen"
 End Extern
-
-' Convert from Max to UTF8
-Function convertISO8859toUTF8:String(text:String)
-	If Not text Then
-		Return ""
-	End If
-	
-	Local l:Int = text.length
-	If l = 0 Then
-		Return ""
-	End If
-	
-	Local count:Int = 0
-	Local s:Byte[] = New Byte[l * 3]
-	
-	For Local i:Int = 0 Until l
-		Local char:Int = text[i]
-
-		If char < 128 Then
-			s[count] = char
-			count:+ 1
-			Continue
-		Else If char<2048
-			s[count] = char/64 | 192
-			count:+ 1
-			s[count] = char Mod 64 | 128
-			count:+ 1
-			Continue
-		Else
-			s[count] =  char/4096 | 224
-			count:+ 1
-			s[count] = char/64 Mod 64 | 128
-			count:+ 1
-			s[count] = char Mod 64 | 128
-			count:+ 1
-			Continue
-		EndIf
-		
-	Next
-
-	Return String.fromBytes(s, count)
-End Function
-
-' Convert from UTF8 to Max
-Function convertUTF8toISO8859:String(s:Byte Ptr)
-
-	Local l:Int = _strlen(s)
-
-	Local b:Short[] = New Short[l]
-	Local bc:Int = -1
-	Local c:Int
-	Local d:Int
-	Local e:Int
-	For Local i:Int = 0 Until l
-
-		bc:+1
-		c = s[i]
-		If c<128 
-			b[bc] = c
-			Continue
-		End If
-		i:+1
-		d=s[i]
-		If c<224 
-			b[bc] = (c-192)*64+(d-128)
-			Continue
-		End If
-		i:+1
-		e = s[i]
-		If c < 240 
-			b[bc] = (c-224)*4096+(d-128)*64+(e-128)
-			If b[bc] = 8233 Then
-				b[bc] = 10
-			End If
-			Continue
-		End If
-	Next
-
-	Return String.fromshorts(b, bc + 1)
-End Function
-
-Function sizedUTF8toISO8859:String(s:Byte Ptr, size:Int)
-
-	Local l:Int = size
-	Local b:Short[] = New Short[l]
-	Local bc:Int = -1
-	Local c:Int
-	Local d:Int
-	Local e:Int
-	For Local i:Int = 0 Until l
-
-		c = s[i]
-		If c = 0 Continue
-
-		bc:+1
-		If c<128
-			b[bc] = c
-			Continue
-		End If
-		i:+1
-		d=s[i]
-		If c<224 
-			b[bc] = (c-192)*64+(d-128)
-			Continue
-		End If
-		i:+1
-		e = s[i]
-		If c < 240 
-			b[bc] = (c-224)*4096+(d-128)*64+(e-128)
-			If b[bc] = 8233 Then
-				b[bc] = 10
-			End If
-			Continue
-		End If
-	Next
-
-	Return String.fromshorts(b, bc + 1)
-End Function
-
-
 
 Type TDatabaseLoader
 	Field _type:String

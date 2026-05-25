@@ -21,6 +21,10 @@ If db.isOpen() Then
 	' get a list of tables in the database
 	Local table:TDBTable = db.getTableInfo("person", True)
 	
+	If Not table Then
+		Print "Table not found"
+		End 
+	End If
 	Print table.ddl
 	
 '	DebugStop

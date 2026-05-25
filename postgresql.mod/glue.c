@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2007-2023, Bruce A Henderson
+  Copyright (c) 2007-2026, Bruce A Henderson
   All rights reserved.
  
   Redistribution and use in source and binary forms, with or without
@@ -27,24 +27,32 @@
 #include <libpq-fe.h>
 #include <stdlib.h>
 
+#include "brl.mod/blitz.mod/blitz.h"
+
 void bmx_pgsql_PQfinish(PGconn * handle) {
 	PQfinish(handle);
 }
 
-PGconn * bmx_pgsql_PQconnectdb(const char * conninfo) {
-	return PQconnectdb(conninfo);
+PGconn * bmx_pgsql_PQconnectdb(BBString * conninfo) {
+	char * c = (char*)bbStringToUTF8String(conninfo);
+	PGconn * conn = PQconnectdb(c);
+	bbMemFree(c);
+	return conn;
 }
 
 int bmx_pgsql_PQstatus(const PGconn * handle) {
 	return PQstatus(handle);
 }
 
-char * bmx_pgsql_PQerrorMessage(const PGconn * handle) {
-	return PQerrorMessage(handle);
+BBString * bmx_pgsql_PQerrorMessage(const PGconn * handle) {
+	return bbStringFromUTF8String(PQerrorMessage(handle));
 }
 
-PGresult * bmx_pgsql_PQexec(PGconn * handle, const char * query) {
-	return PQexec(handle, query);
+PGresult * bmx_pgsql_PQexec(PGconn * handle, BBString * query) {
+	char * q = (char*)bbStringToUTF8String(query);
+	PGresult * res = PQexec(handle, q);
+	bbMemFree(q);
+	return res;
 }
 
 int bmx_pgsql_PQresultStatus(const PGresult * result) {
@@ -67,8 +75,12 @@ char * bmx_pgsql_PQcmdTuples(PGresult * result) {
 	return PQcmdTuples(result);
 }
 
-char * bmx_pgsql_PQfname(PGresult * result, int index) {
-	return PQfname(result, index);
+BBString * bmx_pgsql_PQfname(PGresult * result, int index) {
+	char * c = PQfname(result, index);
+	if (!c) {
+		return &bbEmptyString;
+	}
+	return bbStringFromUTF8String(c);
 }
 
 int bmx_pgsql_PQftype(PGresult * result, int index) {
@@ -95,8 +107,13 @@ int bmx_pgsql_PQgetlength(PGresult * result, int row, int index) {
 	return PQgetlength(result, row, index);
 }
 
-PGresult * bmx_pgsql_PQprepare(PGconn * conn, const char * stmtName, const char * query) {
-	return PQprepare(conn, stmtName, query, 0, NULL);
+PGresult * bmx_pgsql_PQprepare(PGconn * conn, BBString * stmtName, BBString * query) {
+	char * s = (char*)bbStringToUTF8String(stmtName);
+	char * q = (char*)bbStringToUTF8String(query);
+	PGresult * res = PQprepare(conn, s, q, 0, NULL);
+	bbMemFree(s);
+	bbMemFree(q);
+	return res;
 }
 
 //PGresult * bmx_pgsql_PQdescribePrepared(PGconn * conn, const char * stmtName) {
@@ -135,8 +152,11 @@ void bmx_pgsql_setParamBinary(char * * params, int * lengths, int * formats, int
 	formats[index] = 1;
 }
 
-PGresult * bmx_pgsql_PQexecPrepared(PGconn * conn, const char * stmtName, int nParams, const char * const * params, int * lengths, int * formats) {
-	return PQexecPrepared(conn, stmtName, nParams, params, lengths, formats, 0);
+PGresult * bmx_pgsql_PQexecPrepared(PGconn * conn, BBString * stmtName, int nParams, const char * const * params, int * lengths, int * formats) {
+	char * s = (char*)bbStringToUTF8String(stmtName);
+	PGresult * res = PQexecPrepared(conn, s, nParams, params, lengths, formats, 0);
+	bbMemFree(s);
+	return res;
 }
 
 unsigned char * bmx_pgsql_PQunescapeBytea(unsigned char * data, size_t * length) {
@@ -157,3 +177,23 @@ unsigned int bmx_pgsql_PQoidValue(PGresult * result) {
 	return -1;
 }
 
+const char ** bmx_pgsql_createStringArray(int size) {
+    return calloc(size, sizeof(char *));
+}
+
+void bmx_pgsql_setStringArrayValue(const char ** arr, int index, BBString * value) {
+    arr[index] = bbStringToUTF8String(value);
+}
+
+void bmx_pgsql_deleteStringArray(const char ** arr, int count) {
+	for (int i = 0; i < count; ++i) {
+		if (arr[i]) {
+			bbMemFree((void*)arr[i]);
+		}
+	}
+	free(arr);
+}
+
+PGconn * bmx_pgsql_PQconnectdbParams(const char ** keywords, const char ** values) {
+    return PQconnectdbParams(keywords, values, 0);
+}

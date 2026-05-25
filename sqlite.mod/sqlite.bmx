@@ -108,11 +108,6 @@ Import Database.Core
 
 Import "common.bmx"
 
-' Notes
-'
-'  Appended userauth.c to end of sqlite3.c
-'
-
 ' The implementation
 
 Type TDBSQLite Extends TDBConnection
@@ -205,12 +200,38 @@ Type TDBSQLite Extends TDBConnection
 		
 		Return list
 	End Method
+
+	Method tableExists:Int(tableName:String) Override
+		If Not _isOpen Then
+			Return False
+		End If
+		
+		Local query:TDatabaseQuery = TDatabaseQuery.Create(Self)
+		
+		Local sql:String = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? COLLATE NOCASE"
+			
+		query.prepare(sql)
+		query.addString(tableName)
+		
+		If query.execute() Then
+			Local res:Int = query.nextRow()
+			query.Free()
+			Return res
+		End If
+		
+		Return False
+	End Method
 	
 	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False) Override
 		If Not _isOpen Then
 			Return Null
 		End If
 		
+		' table exists?
+		If Not tableExists(tableName) Then
+			Return Null
+		End If
+
 		Local query:TDatabaseQuery = TDatabaseQuery.Create(Self)
 		
 		Local table:TDBTable
@@ -242,8 +263,9 @@ Type TDBSQLite Extends TDBConnection
 			cols.Clear()
 			
 			If withDDL Then
-				sql = "SELECT sql FROM sqlite_master WHERE Type = 'table' and name = '" + tableName + "'"
-				If query.execute(sql) Then
+				query.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' and name = ? COLLATE NOCASE")
+				query.addString(tableName)
+				If query.execute() Then
 					
 					For Local rec:TQueryRecord = EachIn query
 						table.ddl:+ rec.GetString(0) + ";~n~n"
@@ -255,6 +277,8 @@ Type TDBSQLite Extends TDBConnection
 		Else
 			' no table?
 		End If
+
+		query.Free()
 		
 		Return table
 	End Method
@@ -523,7 +547,7 @@ Type TSQLiteResultSet Extends TQueryResultSet
 		Local values:TDBType[] = boundValues
 
 		Local paramCount:Int = sqlite3_bind_parameter_count(stmtHandle)
-		
+
 		If paramCount = bindCount Then
 		
 			For Local i:Int = 0 Until paramCount
@@ -535,24 +559,30 @@ Type TSQLiteResultSet Extends TQueryResultSet
 					result = sqlite3_bind_null(stmtHandle, i + 1)
 				Else
 					Select values[i].kind()
+						Case DBTYPE_BYTE
+							result = sqlite3_bind_int(stmtHandle, i + 1, values[i].getInt())
+						Case DBTYPE_SHORT
+							result = sqlite3_bind_int(stmtHandle, i + 1, values[i].getInt())
 						Case DBTYPE_INT
 							result = sqlite3_bind_int(stmtHandle, i + 1, values[i].getInt())
+						Case DBTYPE_UINT
+							result = sqlite3_bind_int64(stmtHandle, i + 1, values[i].getLong())
 						Case DBTYPE_FLOAT
 							result = sqlite3_bind_double(stmtHandle, i + 1, values[i].getFloat())
 						Case DBTYPE_DOUBLE
 							result = sqlite3_bind_double(stmtHandle, i + 1, values[i].getDouble())
 						Case DBTYPE_LONG
 							result = sqlite3_bind_int64(stmtHandle, i + 1, values[i].getLong())
+						Case DBTYPE_ULONG
+							result = bmx_sqlite3_bind_text64(stmtHandle, i + 1, String.FromULong(values[i].getULong()), -1)
 						Case DBTYPE_STRING
-							Local s:Byte Ptr = values[i].getString().ToUTF8String()
-							result = bmx_sqlite3_bind_text64(stmtHandle, i + 1, s, _strlen(s), -1)
-							MemFree(s)
+							result = bmx_sqlite3_bind_text64(stmtHandle, i + 1, values[i].getString(), -1)
+						Case DBTYPE_DECIMAL
+							result = bmx_sqlite3_bind_text64(stmtHandle, i + 1, values[i].getDecimal().ToString(), -1)
 						Case DBTYPE_BLOB
 							result = bmx_sqlite3_bind_blob64(stmtHandle, i + 1, values[i].getBlob(), values[i].size(), 0)
 						Case DBTYPE_DATE, DBTYPE_DATETIME, DBTYPE_TIME
-							Local s:Byte Ptr = values[i].getString().ToUTF8String()
-							result = bmx_sqlite3_bind_text64(stmtHandle, i + 1, s, _strlen(s), -1)
-							MemFree(s)
+							result = bmx_sqlite3_bind_text64(stmtHandle, i + 1, values[i].getString(), -1)
 					End Select
 					
 				End If
@@ -622,6 +652,8 @@ Type TSQLiteResultSet Extends TQueryResultSet
 					If values[i] Then
 						values[i].clear()
 					End If
+
+					Local decl:String = String.FromUTF8String(sqlite3_column_decltype(stmtHandle, i))
 				
 					Select sqlite3_column_type(stmtHandle, i)
 						Case SQLITE_INTEGER
@@ -638,7 +670,7 @@ Type TSQLiteResultSet Extends TQueryResultSet
 							values[i].setBlob(sqlite3_column_blob(stmtHandle, i), sqlite3_column_bytes(stmtHandle, i))
 						Default
 							values[i] = New TDBString
-							values[i].setString(sizedUTF8toISO8859(sqlite3_column_text(stmtHandle, i), sqlite3_column_bytes(stmtHandle, i)))
+							values[i].setString(String.FromUTF8Bytes(sqlite3_column_text(stmtHandle, i), sqlite3_column_bytes(stmtHandle, i)))
 					End Select
 				Next
 
@@ -693,8 +725,6 @@ Type TSQLiteResultSet Extends TQueryResultSet
 			
 			rec.setField(i, TQueryField.Create(columnName[dotPosition..], dbTypeFromNative(typeName)))
 		Next
-		
-		
 	End Method
 	
 	Function dbTypeFromNative:Int(name:String, _type:Int = 0, _flags:Int = 0)
@@ -702,7 +732,7 @@ Type TSQLiteResultSet Extends TQueryResultSet
 		name = name.ToLower()
 		
 		If name.startsWith("numeric") Then
-			Return DBTYPE_DOUBLE
+			Return DBTYPE_DECIMAL
 		End If
 		
 		Select name

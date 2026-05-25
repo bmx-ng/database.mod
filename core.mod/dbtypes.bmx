@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2022 Bruce A Henderson
+' Copyright (c) 2007-2026 Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -26,6 +26,7 @@
 SuperStrict
 
 Import BRL.Blitz
+Import Math.Decimal
 
 Import "glue.c"
 Import "strptime.bmx"
@@ -39,6 +40,12 @@ Const DBTYPE_DATE:Int = 6
 Const DBTYPE_BLOB:Int = 7
 Const DBTYPE_DATETIME:Int = 8
 Const DBTYPE_TIME:Int = 9
+Const DBTYPE_UINT:Int = 10
+Const DBTYPE_ULONG:Int = 11
+Const DBTYPE_DECIMAL:Int = 12
+Const DBTYPE_BYTE:Int = 13
+Const DBTYPE_SHORT:Int = 14
+Const DBTYPE_BOOL:Int = 15
 
 Rem
 bbdoc: The Base for database field types.
@@ -53,13 +60,16 @@ Currently implemented types are,
 <li>TDBLong</li>
 <li>TDBDate (see note below)</li>
 <li>TDBBlob (see note below)</li>
+<li>TDBDecimal</li>
+<li>TDDateTime</li>
+<li>TDBUInt</li>
+<li>TDBULong</li>
+<li>TDBByte</li>
+<li>TDBShort</li>
 </ul>
 <p>
 <b>Please Note:</b> Currently TDBDate and TDBBlob are not fully supported/implemented. I still haven't decided on the
 best way to do these - especially the date stuff.<br>
-I'm thinking of adding support for Date, DateTime and Time type fields, which are generally supported on
-most databases. The only problem is, Blitz doesn't really handle them yet !!<br>
-Perhaps I need to build a Date/Calendar module... :-p
 </p>
 End Rem
 Type TDBType
@@ -76,7 +86,15 @@ Type TDBType
 	Method isNull:Int()
 		Return _isNull
 	End Method
-		
+
+	Method getByte:Byte()
+		Return 0
+	End Method
+
+	Method getShort:Short()
+		Return 0
+	End Method
+
 	Method getInt:Int()
 		Return 0
 	End Method
@@ -101,6 +119,18 @@ Type TDBType
 		Return Null
 	End Method
 
+	Method getUInt:UInt()
+		Return 0
+	End Method
+
+	Method getULong:ULong()
+		Return 0
+	End Method
+
+	Method getDecimal:TDecimal()
+		Return Decimal(0)
+	End Method
+
 	Method setLong(v:Long)
 		Assert 0, "setLong not supported on this TDBType"
 	End Method
@@ -109,8 +139,16 @@ Type TDBType
 		Assert 0, "setDouble not supported on this TDBType"
 	End Method
 
-	Method setString(v:String)
+	Method setString(v:String, isNull:Int = False)
 		Assert 0, "setString not supported on this TDBType"
+	End Method
+
+	Method setByte(v:Byte)
+		Assert 0, "setByte not supported on this TDBType"
+	End Method
+
+	Method setShort(v:Short)
+		Assert 0, "setShort not supported on this TDBType"
 	End Method
 
 	Method setInt(v:Int)
@@ -132,6 +170,19 @@ Type TDBType
 	Method size:Int()
 		Assert 0, "size not supported on this TDBType"
 	End Method
+
+	Method setUInt(v:UInt)
+		Assert 0, "setUInt not supported on this TDBType"
+	End Method
+
+	Method setULong(v:ULong)
+		Assert 0, "setULong not supported on this TDBType"
+	End Method
+
+	Method setDecimal(v:TDecimal)
+		Assert 0, "setDecimal not supported on this TDBType"
+	End Method
+
 End Type
 
 Rem
@@ -157,16 +208,52 @@ Type TDBString Extends TDBType
 		Return value
 	End Method
 
+	Method getByte:Byte()
+		Return Byte(value.ToInt())
+	End Method
+
+	Method getShort:Short()
+		Return Short(value.ToInt())
+	End Method
+
+	Method getInt:Int()
+		Return value.ToInt()
+	End Method
+	
+	Method getDouble:Double()
+		Return value.ToDouble()
+	End Method
+	
+	Method getFloat:Float()
+		Return value.ToFloat()
+	End Method
+
+	Method getLong:Long()
+		Return value.ToLong()
+	End Method
+
+	Method getUInt:UInt()
+		Return value.ToUInt()
+	End Method
+
+	Method getULong:ULong()
+		Return value.ToULong()
+	End Method
+
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
+	End Method
+
 	Rem
 	bbdoc: Sets the string value.
 	End Rem
-	Method setString(v:String)
-		If v Then
-			value = v
-			_isNull = False
-		Else
+	Method setString(v:String, isNull:Int = False)
+		If Not v And isNull Then
 			value = Null
 			_isNull = True
+		Else
+			value = v
+			_isNull = False
 		End If
 	End Method
 
@@ -192,6 +279,326 @@ Type TDBString Extends TDBType
 End Type
 
 Rem
+bbdoc: An Byte-type field (0-255).
+End Rem
+Type TDBByte Extends TDBType
+	Field value:Byte
+
+	Rem
+	bbdoc: Creates a new TDBByte object with @value.
+	End Rem
+	Function Set:TDBByte(value:Byte)
+		Local this:TDBByte = New TDBByte
+		this.setByte(value)
+		Return this
+	End Function
+
+	Rem
+	bbdoc: Returns the byte value.
+	End Rem
+	Method getByte:Byte()
+		Return value
+	End Method
+
+	Rem
+	bbdoc: Returns the short representation of the byte value.
+	End Rem
+	Method getShort:Short()
+		Return Short(value)
+	End Method
+	
+	Rem
+	bbdoc: Returns the int representation of the byte value.
+	End Rem
+	Method getInt:Int()
+		Return Int(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the uint representation of the byte value.
+	End Rem
+	Method getUInt:UInt()
+		Return UInt(value)
+	End Method
+
+	Rem
+	bbdoc: Returns a long representation of the byte value.
+	End Rem
+	Method getLong:Long()
+		Return Long(value)
+	End Method
+
+	Rem
+	bbdoc: Returns a ulong representation of the byte value.
+	End Rem
+	Method getULong:ULong()
+		Return ULong(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the byte value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
+	End Method
+
+	Rem
+	bbdoc: Sets the int value.
+	End Rem
+	Method setInt(v:Int)
+		value = Byte(v)
+		_isNull = False
+	End Method
+
+	Method setByte(v:Byte)
+		value = v
+		_isNull = False
+	End Method
+
+	Method setShort(v:Short)
+		value = Byte(v)
+		_isNull = False
+	End Method
+
+	Method setUInt(v:UInt)
+		value = Byte(v)
+		_isNull = False
+	End Method
+
+	Method setULong(v:ULong)
+		value = Byte(v)
+		_isNull = False
+	End Method
+
+	Method setDecimal(v:TDecimal)
+		If v Then
+			value = Byte(v.ToInt())
+			_isNull = False
+		End If
+	End Method
+
+	Method clear()
+		value = 0
+		_isNull = True
+	End Method
+	
+	Method kind:Int()
+		Return DBTYPE_BYTE
+	End Method
+
+End Type
+
+Type TDBBool Extends TDBType
+	Field value:Int
+
+	Rem
+	bbdoc: Creates a new TDBBool object with @value.
+	End Rem
+	Function Set:TDBBool(value:Int)
+		Local this:TDBBool = New TDBBool
+		this.setInt(value)
+		Return this
+	End Function
+
+	Rem
+	bbdoc: Returns the byte representation of the bool value.
+	End Rem
+	Method getByte:Byte()
+		Return Byte(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the short representation of the bool value.
+	End Rem
+	Method getShort:Short()
+		Return Short(value)
+	End Method
+	
+	Rem
+	bbdoc: Returns the int representation of the bool value.
+	End Rem
+	Method getInt:Int()
+		Return Int(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the uint representation of the bool value.
+	End Rem
+	Method getUInt:UInt()
+		Return UInt(value)
+	End Method
+
+	Rem
+	bbdoc: Returns a long representation of the bool value.
+	End Rem
+	Method getLong:Long()
+		Return Long(value)
+	End Method
+
+	Rem
+	bbdoc: Returns a ulong representation of the bool value.
+	End Rem
+	Method getULong:ULong()
+		Return ULong(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the bool value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
+	End Method
+
+	Rem
+	bbdoc: Sets the int value.
+	End Rem
+	Method setInt(v:Int)
+		value = v
+		_isNull = False
+	End Method
+
+	Method setByte(v:Byte)
+		value = Int(v)
+		_isNull = False
+	End Method
+
+	Method setShort(v:Short)
+		value = Int(v)
+		_isNull = False
+	End Method
+
+	Method setUInt(v:UInt)
+		value = Int(v)
+		_isNull = False
+	End Method
+
+	Method setULong(v:ULong)
+		value = Int(v)
+		_isNull = False
+	End Method
+
+	Method setDecimal(v:TDecimal)
+		If v Then
+			value = Int(v.ToInt())
+			_isNull = False
+		End If
+	End Method
+
+	Method clear()
+		value = 0
+		_isNull = True
+	End Method
+	
+	Method kind:Int()
+		Return DBTYPE_BOOL
+	End Method
+
+End Type
+
+Type TDBShort Extends TDBType
+	Field value:Short
+
+	Rem
+	bbdoc: Creates a new TDBShort object with @value.
+	End Rem
+	Function Set:TDBShort(value:Short)
+		Local this:TDBShort = New TDBShort
+		this.setShort(value)
+		Return this
+	End Function
+
+	Method getByte:Byte()
+		Return Byte(value)
+	End Method
+
+	Method getShort:Short()
+		Return value
+	End Method
+	
+	Rem
+	bbdoc: Returns the int value.
+	End Rem
+	Method getInt:Int()
+		Return Int(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the uint representation of the value.
+	End Rem
+	Method getUInt:UInt()
+		Return UInt(value)
+	End Method
+
+	' Allows to return as a long.
+	Rem
+	bbdoc: Returns a long representation of the value.
+	End Rem
+	Method getLong:Long()
+		Return Long(value)
+	End Method
+
+	Rem
+	bbdoc: Returns a ulong representation of the value.
+	End Rem
+	Method getULong:ULong()
+		Return ULong(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
+	End Method
+
+	Rem
+	bbdoc: Sets the int value.
+	End Rem
+	Method setInt(v:Int)
+		value = Short(v)
+		_isNull = False
+	End Method
+
+	Method setByte(v:Byte)
+		value = Short(v)
+		_isNull = False
+	End Method
+
+	Method setShort(v:Short)
+		value = v
+		_isNull = False
+	End Method
+
+	Method setUInt(v:UInt)
+		value = Short(v)
+		_isNull = False
+	End Method
+
+	Method setULong(v:ULong)
+		value = Short(v)
+		_isNull = False
+	End Method
+
+	Method setDecimal(v:TDecimal)
+		If v Then
+			value = Short(v.ToInt())
+			_isNull = False
+		End If
+	End Method
+
+	Method clear()
+		value = 0
+		_isNull = True
+	End Method
+	
+	Method kind:Int()
+		Return DBTYPE_SHORT
+	End Method
+
+End Type
+
+
+Rem
 bbdoc: An Integer-type field.
 End Rem
 Type TDBInt Extends TDBType
@@ -205,6 +612,14 @@ Type TDBInt Extends TDBType
 		this.setInt(value)
 		Return this
 	End Function
+
+	Method getByte:Byte()
+		Return Byte(value)
+	End Method
+
+	Method getShort:Short()
+		Return Short(value)
+	End Method
 	
 	Rem
 	bbdoc: Returns the int value.
@@ -212,13 +627,34 @@ Type TDBInt Extends TDBType
 	Method getInt:Int()
 		Return value
 	End Method
-	
+
+	Rem
+	bbdoc: Returns the uint representation of the value.
+	End Rem
+	Method getUInt:UInt()
+		Return UInt(value)
+	End Method
+
 	' Allows to return as a long.
 	Rem
 	bbdoc: Returns a long representation of the value.
 	End Rem
 	Method getLong:Long()
 		Return Long(value)
+	End Method
+
+	Rem
+	bbdoc: Returns a ulong representation of the value.
+	End Rem
+	Method getULong:ULong()
+		Return ULong(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
 	End Method
 
 	Rem
@@ -358,12 +794,41 @@ Type TDBLong Extends TDBType
 	Method getLong:Long()
 		Return value
 	End Method
-	
+
+	Method getByte:Byte()
+		Return Byte(value)
+	End Method
+
+	Method getShort:Short()
+		Return Short(value)
+	End Method
+
 	Rem
 	bbdoc: Returns the int representation of the long value.
 	End Rem
 	Method getInt:Int()
 		Return Int(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the uint representation of the long value.
+	End Rem
+	Method getUInt:UInt()
+		Return UInt(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the ulong representation of the long value.
+	End Rem
+	Method getULong:ULong()
+		Return ULong(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the long value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
 	End Method
 
 	Rem
@@ -385,96 +850,162 @@ Type TDBLong Extends TDBType
 
 End Type
 
-Type TDBDateBase Extends TDBType
-
-	Field value:Long
-
-	Method format:String(fmt:String) Abstract
-	
-End Type
-
-
 Rem
-bbdoc: A Date-type field.
-about: <b>Note:</b> This type may change!
+bbdoc: A UInt-type field.
 End Rem
-Type TDBDate Extends TDBDateBase
+Type TDBUInt Extends TDBType
+	Field value:UInt
 
-	Field _year:Int = 1900
-	Field _month:Int = 1
-	Field _day:Int = 1
-
-	Function Set:TDBDate(year:Int, Month:Int, day:Int) { nomangle }
-		Local this:TDBDate = New TDBDate 
-		this.setFromParts(year, Month, day)
-		Return this
-	End Function
-
-	Function SetWithLong:TDBDate(value:Long)
-		Local this:TDBDate = New TDBDate
-		this.setDate(value)
-		Return this
-	End Function
-	
 	Rem
-	bbdoc: Creates a TDBDate from a string.
-	about: The date should be in the format: YYYY-MM-DD
+	bbdoc: Creates a new TDBUInt object with @value.
 	End Rem
-	Function SetFromString:TDBDate(date:String)
-		Local y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int
-		If dbStrptime(date, "%Y-%m-%d", y, m, d, hh, mm, ss)
-			Return Set(y, m, d)
-		End If
+	Function Set:TDBUInt(value:UInt)
+		Local this:TDBUInt = New TDBUInt
+		this.setUInt(value)
+		Return this
 	End Function
 
-	Method getDate:Long()
+	Rem
+	bbdoc: Returns the long representation of the uint value.
+	End Rem
+	Method getLong:Long()
+		Return Long(value)
+	End Method
+
+	Method getByte:Byte()
+		Return Byte(value)
+	End Method
+
+	Method getShort:Short()
+		Return Short(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the int representation of the uint value.
+	End Rem
+	Method getInt:Int()
+		Return Int(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the uint value.
+	End Rem
+	Method getUInt:UInt()
 		Return value
 	End Method
 	
-	Method getYear:Int()
-		Return _year
-	End Method
-	
-	Method getMonth:Int()
-		Return _month
-	End Method
-	
-	Method getDay:Int()
-		Return _day
-	End Method
-	
-	Method setFromParts(y:Int, m:Int, d:Int)
-		_year = y
-		_month = m
-		_day = d
-
-		_calcDateValue(Varptr value, _year, _month, _day, 0, 0, 0)
-		_isNull = False
+	Rem
+	bbdoc: Returns the ulong representation of the uint value.
+	End Rem
+	Method getULong:ULong()
+		Return ULong(value)
 	End Method
 
 	Rem
-	bbdoc: Formats the DateTime using the specified formatting
+	bbdoc: Returns the decimal representation of the uint value.
 	End Rem
-	Method format:String(fmt:String = "%Y-%m-%d")
-		Return _formatDate:String(fmt, _year, _month, _day, 0, 0, 0)
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
 	End Method
 
-	Method getString:String()
-		Return format()
-	End Method
-	
-	Method setDate(v:Long)
+	Rem
+	bbdoc: Sets the uint value.
+	End Rem
+	Method setUInt(v:UInt)
 		value = v
 		_isNull = False
 	End Method
-
-	Method clear() 
+	
+	Method clear()
 		value = 0
 		_isNull = True
 	End Method
 
 	Method kind:Int()
-		Return DBTYPE_DATE
+		Return DBTYPE_UINT
+	End Method
+
+End Type
+
+Rem
+bbdoc: A ULong-type field.
+End Rem
+Type TDBULong Extends TDBType
+	Field value:ULong
+
+	Rem
+	bbdoc: Creates a new TDBULong object with @value.
+	End Rem
+	Function Set:TDBULong(value:ULong)
+		Local this:TDBULong = New TDBULong
+		this.setULong(value)
+		Return this
+	End Function
+
+	Rem
+	bbdoc: Returns the long representation of the value.
+	End Rem
+	Method getLong:Long()
+		Return Long(value)
+	End Method
+	
+	Rem
+	bbdoc: Returns the byte representation of the value.
+	End Rem
+	Method getByte:Byte()
+		Return Byte(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the short representation of the value.
+	End Rem
+	Method getShort:Short()
+		Return Short(value)
+	End Method
+	
+	Rem
+	bbdoc: Returns the int representation of the value.
+	End Rem
+	Method getInt:Int()
+		Return Int(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the uint representation of the value.
+	End Rem
+	Method getUInt:UInt()
+		Return UInt(value)
+	End Method
+
+	Rem
+	bbdoc: Returns the value.
+	End Rem
+	Method getULong:ULong()
+		Return value
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return Decimal(value)
+	End Method
+
+	Rem
+	bbdoc: Sets the ulong value.
+	End Rem
+	Method setULong(v:ULong)
+		value = v
+		_isNull = False
+	End Method
+	
+	Method clear()
+		value = 0
+		_isNull = True
+	End Method
+
+	Method kind:Int()
+		Return DBTYPE_ULONG
 	End Method
 
 End Type
@@ -549,6 +1080,111 @@ Type TDBBlob Extends TDBType
 	
 End Type
 
+Type TDBDateBase Extends TDBType
+
+	Field value:Long
+	Field _microsecond:Int 
+
+	Method Format:String(fmt:String) Abstract
+	
+End Type
+
+
+Rem
+bbdoc: A Date-type field.
+about: <b>Note:</b> This type may change!
+End Rem
+Type TDBDate Extends TDBDateBase
+
+	Field _year:Int = 1900
+	Field _month:Int = 1
+	Field _day:Int = 1
+
+	Function Set:TDBDate(year:Int, Month:Int, day:Int) { nomangle }
+		Local this:TDBDate = New TDBDate 
+		this.setFromParts(year, Month, day)
+		Return this
+	End Function
+
+	Function SetWithLong:TDBDate(value:Long)
+		Local this:TDBDate = New TDBDate
+		this.setDate(value)
+		Return this
+	End Function
+	
+	Rem
+	bbdoc: Creates a TDBDate from a string.
+	about: The date should be in the format: YYYY-MM-DD
+	End Rem
+	Function SetFromString:TDBDate(date:String)
+		Local y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int, micros:Int
+		If dbStrptime(date, "%Y-%m-%d", y, m, d, hh, mm, ss, micros)
+			If dbIsValidDate(y, m, d) Then
+				Return Set(y, m, d)
+			End If
+		End If
+	End Function
+
+	Method getDate:Long()
+		Return value
+	End Method
+	
+	Method getYear:Int()
+		Return _year
+	End Method
+	
+	Method getMonth:Int()
+		Return _month
+	End Method
+	
+	Method getDay:Int()
+		Return _day
+	End Method
+	
+	Method setFromParts(y:Int, m:Int, d:Int)
+		If Not dbIsValidDate(y, m, d) Then
+			clear()
+			Return
+		End If
+		_year = y
+		_month = m
+		_day = d
+		_calcDateValue(Varptr value, _year, _month, _day, 0, 0, 0)
+		_isNull = False
+	End Method
+	
+	Rem
+	bbdoc: Formats the DateTime using the specified formatting
+	End Rem
+	Method format:String(fmt:String = "%Y-%m-%d")
+		Return _formatDate:String(fmt, _year, _month, _day, 0, 0, 0)
+	End Method
+
+	Method getString:String()
+		Return format()
+	End Method
+	
+	Method setDate(v:Long)
+		value = v
+		Local hh:Int, mm:Int, ss:Int
+		If _splitDateValue(value, _year, _month, _day, hh, mm, ss)
+			_isNull = False
+		Else
+			clear()
+		End If
+	End Method
+
+	Method clear() 
+		value = 0
+		_isNull = True
+	End Method
+
+	Method kind:Int()
+		Return DBTYPE_DATE
+	End Method
+
+End Type
+
 Rem
 bbdoc: A DateTime-type field.
 about: <b>Note:</b> This type may change!
@@ -561,17 +1197,16 @@ Type TDBDateTime Extends TDBDateBase
 	Field _hour:Int
 	Field _minute:Int
 	Field _second:Int
-	Field value:Long
 
-	Function Set:TDBDateTime(year:Int, Month:Int, day:Int, hours:Int, mins:Int, secs:Int) { nomangle }
+	Function Set:TDBDateTime(year:Int, Month:Int, day:Int, hours:Int, mins:Int, secs:Int, micros:Int = 0) { nomangle }
 		Local this:TDBDateTime = New TDBDateTime
-		this.setFromParts(year, Month, day, hours, mins, secs)
+		this.setFromParts(year, Month, day, hours, mins, secs, micros)
 		Return this
 	End Function
 
-	Function SetWithLong:TDBDateTime(value:Long)
+	Function SetWithLong:TDBDateTime(value:Long, micros:Int = 0)
 		Local this:TDBDateTime = New TDBDateTime
-		this.setDate(value)
+		this.setDate(value, micros)
 		Return this
 	End Function
 
@@ -580,19 +1215,32 @@ Type TDBDateTime Extends TDBDateBase
 	about: The datetime should be in the format: YYYY-MM-DD HH:MM:SS
 	End Rem
 	Function SetFromString:TDBDateTime(date:String)
-		Local y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int
-		If dbStrptime(date, "%Y-%m-%d %H:%M:%S", y, m, d, hh, mm, ss)
-			Return Set(y, m, d, hh, mm, ss)
+		Local y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int, micros:Int
+		If dbStrptime(date, "%Y-%m-%d %H:%M:%S.%f", y, m, d, hh, mm, ss, micros)
+			If dbIsValidDate(y, m, d) And dbIsValidTime(hh, mm, ss, micros) Then
+				Return Set(y, m, d, hh, mm, ss, micros)
+			End If
+		End If
+		If dbStrptime(date, "%Y-%m-%d %H:%M:%S", y, m, d, hh, mm, ss, micros)
+			If dbIsValidDate(y, m, d) And dbIsValidTime(hh, mm, ss) Then
+				Return Set(y, m, d, hh, mm, ss)
+			End If
 		End If
 	End Function
 
-	Method setFromParts(y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int)
+	Method setFromParts(y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int, micros:Int = 0)
+		If Not dbIsValidDate(y, m, d) Or Not dbIsValidTime(hh, mm, ss, micros) Then
+			clear()
+			Return
+		End If
+	
 		_year = y
 		_month = m
 		_day = d
 		_hour = hh
 		_minute = mm
 		_second = ss
+		_microsecond = micros
 		
 		_calcDateValue(Varptr value, _year, _month, _day, _hour, _minute, _second)
 		_isNull = False
@@ -625,26 +1273,39 @@ Type TDBDateTime Extends TDBDateBase
 	Method getSecond:Int()
 		Return _second
 	End Method
+
+	Method getMicrosecond:Int()
+		Return _microsecond
+	End Method
+
+	Method getMillisecond:Int()
+		Return _microsecond / 1000
+	End Method
 	
 	Rem
 	bbdoc: Formats the DateTime using the specified formatting
 	End Rem
-	Method format:String(fmt:String = "%Y-%m-%d %H:%M:%S")
-		Return _formatDate:String(fmt, _year, _month, _day, _hour, _minute, _second)
+	Method Format:String(fmt:String = "%Y-%m-%d %H:%M:%S")
+		Return _formatDate:String(fmt, _year, _month, _day, _hour, _minute, _second, _microsecond)
 	End Method
 
 	Method getString:String()
-		Return format()
+		Return Format()
 	End Method
 
-	Method setDate(v:Long)
+	Method setDate(v:Long, micros:Int = 0)
 		value = v
-
-		_isNull = False
+		_microsecond = micros
+		If _splitDateValue(value, _year, _month, _day, _hour, _minute, _second)
+			_isNull = False
+		Else
+			clear()
+		End If
 	End Method
 
 	Method clear() 
 		value = 0
+		_microsecond = 0
 		_isNull = True
 	End Method
 
@@ -663,17 +1324,16 @@ Type TDBTime Extends TDBDateBase
 	Field _hour:Int
 	Field _minute:Int
 	Field _second:Int
-	Field value:Long
 
-	Function Set:TDBTime(hours:Int, mins:Int, secs:Int) { nomangle }
-		Local this:TDBTime = New TDBTime 
-		this.setFromParts(hours, mins, secs)
+	Function Set:TDBTime(hours:Int, mins:Int, secs:Int, micros:Int = 0) { nomangle }
+		Local this:TDBTime = New TDBTime
+		this.setFromParts(hours, mins, secs, micros)
 		Return this
 	End Function
 
-	Function SetWithLong:TDBTime(value:Long)
+	Function SetWithLong:TDBTime(value:Long, micros:Int = 0)
 		Local this:TDBTime = New TDBTime
-		this.setDate(value)
+		this.setDate(value, micros)
 		Return this
 	End Function
 
@@ -682,9 +1342,13 @@ Type TDBTime Extends TDBDateBase
 	about: The datetime should be in the format: YYYY-MM-DD HH:MM:SS
 	End Rem
 	Function SetFromString:TDBTime(date:String)
-		Local y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int
-		If dbStrptime(date, "%H:%M:%S", y, m, d, hh, mm, ss)
-			Return Set(hh, mm, ss)
+		Local y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int, micros:Int
+		If dbStrptime(date, "%H:%M:%S.%f", y, m, d, hh, mm, ss, micros)
+			Return Set(hh, mm, ss, micros)
+		End If
+
+		If dbStrptime(date, "%H:%M:%S", y, m, d, hh, mm, ss, micros)
+			Return Set(hh, mm, ss, micros)
 		End If
 	End Function
 
@@ -692,23 +1356,33 @@ Type TDBTime Extends TDBDateBase
 		Return value
 	End Method
 
-	Method setDate(v:Long)
+	Method setDate(v:Long, micros:Int = 0)
+		If Not dbIsValidTime(0, 0, 0, micros) Then
+			clear()
+			Return
+		End If
 		value = v
-		Local time:Long = v
-		_second = time Mod 60
-		time :/ 60
-		_minute = time Mod 60
-		time :/60
-		_hour = time Mod 24
-		_isNull = False
+		_microsecond = micros
+		Local y:Int, m:Int, d:Int
+		If _splitDateValue(value, y, m, d, _hour, _minute, _second)
+			_isNull = False
+		Else
+			clear()
+		End If
 	End Method
 
-	Method setFromParts(hh:Int, mm:Int, ss:Int)
+	Method setFromParts(hh:Int, mm:Int, ss:Int, micros:Int = 0)
+		If Not dbIsValidTime(hh, mm, ss, micros) Then
+			clear()
+			Return
+		End If
+	
 		_hour = hh
 		_minute = mm
 		_second = ss
+		_microsecond = micros
 		
-		_calcDateValue(Varptr value, 1900, 1, 0, _hour, _minute, _second)
+		_calcDateValue(Varptr value, 1900, 1, 1, _hour, _minute, _second)
 		_isNull = False
 	End Method
 
@@ -724,19 +1398,31 @@ Type TDBTime Extends TDBDateBase
 		Return _second
 	End Method
 
+	Method getMicrosecond:Int()
+		Return _microsecond
+	End Method
+
+	Method getMillisecond:Int()
+		Return _microsecond / 1000
+	End Method
+
 	Rem
 	bbdoc: Formats the DateTime using the specified formatting
 	End Rem
-	Method format:String(fmt:String = "%H:%M:%S")
-		Return _formatDate:String(fmt, 1900, 1, 0, _hour, _minute, _second)
+	Method Format:String(fmt:String = "%H:%M:%S")
+		Return _formatDate:String(fmt, 1900, 1, 1, _hour, _minute, _second, _microsecond)
 	End Method
 
 	Method getString:String()
-		Return format()
+		Return Format()
 	End Method
 
 	Method clear() 
 		value = 0
+		_hour = 0
+		_minute = 0
+		_second = 0
+		_microsecond = 0
 		_isNull = True
 	End Method
 
@@ -746,9 +1432,109 @@ Type TDBTime Extends TDBDateBase
 
 End Type
 
+Type TDBDecimal Extends TDBType
+	Field value:TDecimal = Decimal(0)
+
+	Rem
+	bbdoc: Creates a new TDBDecimal object with @value.
+	End Rem
+	Function Set:TDBDecimal(value:TDecimal)
+		Local this:TDBDecimal = New TDBDecimal
+		this.setDecimal(value)
+		Return this
+	End Function
+	
+	Method getByte:Byte()
+		Return Byte(value.ToInt())
+	End Method
+
+	Method getShort:Short()
+		Return Short(value.ToInt())
+	End Method
+
+	Rem
+	bbdoc: Returns the int value.
+	End Rem
+	Method getInt:Int()
+		Return value.ToInt()
+	End Method
+
+	Rem
+	bbdoc: Returns the uint representation of the value.
+	End Rem
+	Method getUInt:UInt()
+		Return value.ToUInt()
+	End Method
+
+	' Allows to return as a long.
+	Rem
+	bbdoc: Returns a long representation of the value.
+	End Rem
+	Method getLong:Long()
+		Return value.ToLong()
+	End Method
+
+	Rem
+	bbdoc: Returns a ulong representation of the value.
+	End Rem
+	Method getULong:ULong()
+		Return value.ToULong()
+	End Method
+
+	Rem
+	bbdoc: Returns the decimal representation of the value.
+	End Rem
+	Method getDecimal:TDecimal()
+		Return value
+	End Method
+
+	Rem
+	bbdoc: Sets the decimal value.
+	End Rem
+	Method setDecimal(v:TDecimal)
+		If v Then
+			value = v
+			_isNull = False
+		Else
+			_isNull = True
+		End If
+	End Method
+
+	Method setString(v:String, isNull:Int = False)
+		If Not v And isNull Then
+			value = Null
+			_isNull = True
+		Else
+			value = Decimal(v)
+			_isNull = False
+		End If
+	End Method
+
+	Method SetInt(v:Int)
+		value = Decimal(v)
+		_isNull = False
+	End Method
+
+	Method SetLong(v:Long)
+		value = Decimal(v)
+		_isNull = False
+	End Method
+
+	Method clear()
+		value = Null
+		_isNull = True
+	End Method
+	
+	Method kind:Int()
+		Return DBTYPE_DECIMAL
+	End Method
+
+End Type
+
 Extern
 	Function _calcDateValue(value:Long Ptr, y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int)
-	Function _formatDate:String(format:String, y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int)
+	Function _formatDate:String(format:String, y:Int, m:Int, d:Int, hh:Int, mm:Int, ss:Int, micros:Int = 0)
+	Function _splitDateValue:Int(value:Long, y:Int Var, m:Int Var, d:Int Var, hh:Int Var, mm:Int Var, ss:Int Var)
 End Extern
 
 

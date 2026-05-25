@@ -89,7 +89,7 @@ Const SQLITE_OPEN_TRANSIENT_DB:Int =     $00000400  ' VFS only
 Const SQLITE_OPEN_MAIN_JOURNAL:Int =     $00000800  ' VFS only
 Const SQLITE_OPEN_TEMP_JOURNAL:Int =     $00001000  ' VFS only
 Const SQLITE_OPEN_SUBJOURNAL:Int =       $00002000  ' VFS only
-Const SQLITE_OPEN_MASTER_JOURNAL:Int =   $00004000  ' VFS only
+Const SQLITE_OPEN_SUPER_JOURNAL:Int =    $00004000  ' VFS only
 Const SQLITE_OPEN_NOMUTEX:Int =          $00008000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_FULLMUTEX:Int =        $00010000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_SHAREDCACHE:Int =      $00020000  ' Ok for sqlite3_open_v2()
@@ -97,6 +97,14 @@ Const SQLITE_OPEN_PRIVATECACHE:Int =     $00040000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_WAL:Int =              $00080000  ' VFS only
 Const SQLITE_OPEN_NOFOLLOW:Int =         $01000000  ' Ok for sqlite3_open_v2()
 Const SQLITE_OPEN_EXRESCODE:Int =        $02000000  ' Extended result codes
+
+Const SQLITE_UTF8:Int =           1    ' IMP: R-37514-35566
+Const SQLITE_UTF16LE:Int =        2    ' IMP: R-03371-37637
+Const SQLITE_UTF16BE:Int =        3    ' IMP: R-51971-34154
+Const SQLITE_UTF16:Int =          4    ' Use native byte order
+Const SQLITE_ANY:Int =            5    ' Deprecated
+Const SQLITE_UTF16_ALIGNED:Int =  8    ' sqlite3_create_collation only
+Const SQLITE_UTF8_ZT:Int =       16    ' Zero-terminated UTF8
 
 ' Externs
 Extern
@@ -128,7 +136,7 @@ Extern
 	Function sqlite3_backup_finish:Int(handle:Byte Ptr)
 	Function sqlite3_errcode:Int(handle:Byte Ptr)
 
-	Function bmx_sqlite3_bind_text64:Int(stmtHandle:Byte Ptr, index:Int, value:Byte Ptr, size:Long, how:Int)
+	Function bmx_sqlite3_bind_text64:Int(stmtHandle:Byte Ptr, index:Int, value:String, how:Int)
 	Function bmx_sqlite3_bind_blob64:Int(stmtHandle:Byte Ptr, index:Int, value:Byte Ptr, size:Long, how:Int)
 	Function bmx_sqlite3_column_int64(stmtHandle:Byte Ptr, index:Int, value:Long Ptr)
 	Function bmx_sqlite3_last_insert_rowid(handle:Byte Ptr, id:Long Ptr)
