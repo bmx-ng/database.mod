@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2023, Bruce A Henderson
+' Copyright (c) 2007-2026, Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -31,12 +31,15 @@ about: A PostgreSQL database driver for #Database
 End Rem
 Module Database.PostgreSQL
 
-ModuleInfo "Version: 1.05"
+ModuleInfo "Version: 1.06"
 ModuleInfo "Author: Bruce A Henderson"
 ModuleInfo "License: BSD"
-ModuleInfo "Copyright: 2007-2023 Bruce A Henderson"
+ModuleInfo "Copyright: 2007-2026 Bruce A Henderson"
 ModuleInfo "Modserver: BRL"
 
+ModuleInfo "History: 1.06"
+ModuleInfo "History: Changed macOS pkg-config path for libpq to not use specific version number"
+ModuleInfo "History: Implemented tableExists() and getTableInfo() methods."
 ModuleInfo "History: 1.05"
 ModuleInfo "History: Linux/macOS uses pkg-config to configure libpq"
 ModuleInfo "History: dll no longer provided for Windows - Ensure libpq.dll is in the path"
@@ -58,13 +61,8 @@ ModuleInfo "History: Fixed open() not closing if already open."
 ModuleInfo "History: 1.00 Initial Release"
 
 ?macos
-' it would be nice not to have to be so version specific here...
-'ModuleInfo "CC_OPTS: `pkg-config --cflags /opt/homebrew/Cellar/postgresql@14/14.10/lib/postgresql@14/pkgconfig/libpq.pc`"
-'ModuleInfo "LD_OPTS: `pkg-config --libs /opt/homebrew/Cellar/postgresql@14/14.10/lib/postgresql@14/pkgconfig/libpq.pc`"
-'ModuleInfo "CC_OPTS: `pkg-config --cflags /opt/homebrew/Cellar/postgresql@15/15.5/lib/pkgconfig/libpq.pc`"
-'ModuleInfo "LD_OPTS: `pkg-config --libs /opt/homebrew/Cellar/postgresql@15/15.5/lib/pkgconfig/libpq.pc`"
-ModuleInfo "CC_OPTS: `pkg-config --cflags /opt/homebrew/Cellar/libpq/16.1/lib/pkgconfig/libpq.pc`"
-ModuleInfo "LD_OPTS: `pkg-config --libs /opt/homebrew/Cellar/libpq/16.1/lib/pkgconfig/libpq.pc`"
+ModuleInfo "CC_OPTS: `pkg-config --cflags /opt/homebrew/opt/libpq/lib/pkgconfig/libpq.pc`"
+ModuleInfo "LD_OPTS: `pkg-config --libs /opt/homebrew/opt/libpq/lib/pkgconfig/libpq.pc`"
 ?linux
 ModuleInfo "CC_OPTS: `pkg-config --cflags libpq`"
 ModuleInfo "LD_OPTS: `pkg-config --libs libpq`"
@@ -131,7 +129,7 @@ Type TDBPostgreSQL Extends TDBConnection
 		Local result:Byte Ptr = bmx_pgsql_PQexec(handle, "COMMIT")
 		
 		If Not result Or bmx_pgsql_PQresultStatus(result) <> PGRES_COMMAND_OK Then
-			setError("Error committing transaction", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(handle)), TDatabaseError.ERROR_TRANSACTION)
+			setError("Error committing transaction", bmx_pgsql_PQerrorMessage(handle), TDatabaseError.ERROR_TRANSACTION)
 			bmx_pgsql_PQclear(result)
 			Return False
 		End If
@@ -141,7 +139,7 @@ Type TDBPostgreSQL Extends TDBConnection
 		Return True
 	End Method
 	
-	Method getTables:String[]()
+	Method getTables:String[]() Override
 		Local list:String[]
 
 		If Not _isOpen Then
@@ -149,10 +147,16 @@ Type TDBPostgreSQL Extends TDBConnection
 		End If
 
 		Local tables:TList = New TList
-		
 		Local query:TDatabaseQuery = TDatabaseQuery.Create(Self)
-		
-		Local sql:String = "Select tablename from pg_tables where schemaname Not in ('pg_catalog', 'information_schema')"
+
+		Local sql:String = "SELECT c.relname " + ..
+			"FROM pg_catalog.pg_class c " + ..
+			"JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " + ..
+			"WHERE c.relkind IN ('r', 'p') " + ..
+			"AND n.nspname NOT IN ('pg_catalog', 'information_schema') " + ..
+			"AND n.nspname NOT LIKE 'pg_toast%' " + ..
+			"ORDER BY c.relname"
+
 		If query.execute(sql) Then
 			While query.nextRow()
 				tables.addLast(query.value(0).getString())
@@ -161,19 +165,144 @@ Type TDBPostgreSQL Extends TDBConnection
 
 		If tables.count() > 0 Then
 			list = New String[tables.count()]
-			Local i:Int = 0
+			Local i:Int
 			For Local s:String = EachIn tables
 				list[i] = s
-				i:+ 1
+				i:+1
 			Next
 		End If
-		
+
+		query.Free()
 		Return list
 	End Method
 
-	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False)
+	Method tableExists:Int(tableName:String) Override
+		If Not _isOpen Then
+			Return False
+		End If
+
+		Local query:TDatabaseQuery = TDatabaseQuery.Create(Self)
+
+		Local sql:String = "SELECT 1 " + ..
+			"FROM pg_catalog.pg_class c " + ..
+			"JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " + ..
+			"WHERE c.relkind IN ('r', 'p') " + ..
+			"AND c.relname = $1 " + ..
+			"AND pg_catalog.pg_table_is_visible(c.oid) " + ..
+			"LIMIT 1"
+		
+		query.prepare(sql)
+		query.addString(tableName)
+
+		If query.execute() Then
+			Local res:Int = query.nextRow()
+			query.Free()
+			Return res
+		End If
+
+		query.Free()
+
+		Return False
 	End Method
-	
+
+	Method getTableInfo:TDBTable(tableName:String, withDDL:Int = False) Override
+		If Not _isOpen Then
+			Return Null
+		End If
+
+		If Not tableExists(tableName) Then
+			Return Null
+		End If
+
+		Local query:TDatabaseQuery = TDatabaseQuery.Create(Self)
+		Local table:TDBTable
+
+		Local sql:String = "SELECT " + ..
+			"a.attname, " + ..
+			"a.atttypid, " + ..
+			"CASE WHEN a.attnotnull THEN 0 ELSE 1 END AS nullable, " + ..
+			"pg_catalog.pg_get_expr(ad.adbin, ad.adrelid) AS default_value, " + ..
+			"pg_catalog.format_type(a.atttypid, a.atttypmod) AS formatted_type, " + ..
+			"pg_catalog.quote_ident(n.nspname) || '.' || pg_catalog.quote_ident(c.relname) AS qualified_name " + ..
+			"FROM pg_catalog.pg_class c " + ..
+			"JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " + ..
+			"JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid " + ..
+			"LEFT JOIN pg_catalog.pg_attrdef ad ON ad.adrelid = c.oid AND ad.adnum = a.attnum " + ..
+			"WHERE c.relkind IN ('r', 'p') " + ..
+			"AND c.relname = $1 " + ..
+			"AND pg_catalog.pg_table_is_visible(c.oid) " + ..
+			"AND a.attnum > 0 " + ..
+			"AND NOT a.attisdropped " + ..
+			"ORDER BY a.attnum"
+
+		query.prepare(sql)
+		query.addString(tableName)
+
+		If query.execute() Then
+			table = New TDBTable
+			table.name = tableName
+
+			Local cols:TList = New TList
+			Local ddlCols:TList = New TList
+			Local qualifiedName:String
+
+			For Local rec:TQueryRecord = EachIn query
+				Local name:String = rec.GetString(0)
+				Local nativeType:Int = rec.GetInt(1)
+				Local dbType:Int = TPostgreSQLResultSet.dbTypeFromNative(Null, nativeType)
+				Local nullable:Int = rec.GetInt(2)
+				Local defaultValue:TDBType = rec.value(3)
+
+				cols.AddLast(TDBColumn.Create(name, dbType, nullable, defaultValue))
+
+				If withDDL Then
+					qualifiedName = rec.GetString(5)
+
+					Local line:String = "    " + QuoteIdent(name) + " " + rec.GetString(4)
+
+					If Not nullable Then
+						line:+ " NOT NULL"
+					End If
+
+					If defaultValue And Not defaultValue.isNull() Then
+						line:+ " DEFAULT " + defaultValue.getString()
+					End If
+
+					ddlCols.AddLast(line)
+				End If
+			Next
+
+			table.SetCountColumns(cols.count())
+
+			Local i:Int
+			For Local col:TDBColumn = EachIn cols
+				table.SetColumn(i, col)
+				i:+1
+			Next
+
+			If withDDL And ddlCols.count() > 0 Then
+				table.ddl = "CREATE TABLE " + qualifiedName + " (~n"
+
+				i = 0
+				For Local line:String = EachIn ddlCols
+					If i > 0 Then
+						table.ddl:+ ",~n"
+					End If
+					table.ddl:+ line
+					i:+1
+				Next
+
+				table.ddl:+ "~n);~n~n"
+			End If
+
+			cols.Clear()
+			ddlCols.Clear()
+		End If
+
+		query.Free()
+		Return table
+	End Method
+
 	Method open:Int(user:String = Null, pass:String = Null)
 	
 		If _isOpen Then
@@ -188,39 +317,68 @@ Type TDBPostgreSQL Extends TDBConnection
 			_password = pass
 		End If
 		
-		
-		Local connect:String
-		
+		Local count:Int = 0
+
+		If _dbname Then count:+1
+		If _host Then count:+1
+		If _port Then count:+1
+		If _user Then count:+1
+		If _password Then count:+1
+
+		Local keywords:Byte Ptr = bmx_pgsql_createStringArray(count + 1)
+		Local values:Byte Ptr = bmx_pgsql_createStringArray(count + 1)
+		Local i:Int
+		Local s:Int
+
 		If _dbname Then
-			connect :+ "dbname=" + _dbname + "~n"
+			bmx_pgsql_setStringArrayValue(keywords, i, "dbname")
+			bmx_pgsql_setStringArrayValue(values, i, _dbname)
+			i:+1
 		End If
-		
+
 		If _host Then
-			connect :+ "host=" + _host + "~n"
+			bmx_pgsql_setStringArrayValue(keywords, i, "host")
+			bmx_pgsql_setStringArrayValue(values, i, _host)
+			i:+1
 		End If
 
 		If _port Then
-			connect :+ "port=" + _port + "~n"
+			bmx_pgsql_setStringArrayValue(keywords, i, "port")
+			bmx_pgsql_setStringArrayValue(values, i, String.FromInt(_port))
+			i:+1
 		End If
 
 		If _user Then
-			connect :+ "user=" + _user + "~n"
+			bmx_pgsql_setStringArrayValue(keywords, i, "user")
+			bmx_pgsql_setStringArrayValue(values, i, _user)
+			i:+1
 		End If
 
 		If _password Then
-			connect :+ "password=" + _password + "~n"
+			bmx_pgsql_setStringArrayValue(keywords, i, "password")
+			bmx_pgsql_setStringArrayValue(values, i, _password)
+			i:+1
 		End If
-		
-		
-		handle = bmx_pgsql_PQconnectdb(connect)
-		
-		If bmx_pgsql_PQstatus(handle) Then
-			setError("Error connecting to database '" + _dbname + "'", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(handle)), TDatabaseError.ERROR_CONNECTION)
-			Return False
-		End If
-		
-		
+
+		handle = bmx_pgsql_PQconnectdbParams(keywords, values)
+
+		bmx_pgsql_deleteStringArray(keywords, count)
+		bmx_pgsql_deleteStringArray(values, count)
+
 		_isOpen = True
+
+		If Not handle Or bmx_pgsql_PQstatus(handle) Then
+
+			setError("Error connecting to database '" + _dbname + "'", bmx_pgsql_PQerrorMessage(handle), TDatabaseError.ERROR_CONNECTION)
+			If handle Then
+				bmx_pgsql_PQfinish(handle)
+				handle = Null
+			End If
+			_isOpen = False
+			Return False
+
+		End If
+
 		Return True
 	End Method
 
@@ -233,7 +391,7 @@ Type TDBPostgreSQL Extends TDBConnection
 		Local result:Byte Ptr = bmx_pgsql_PQexec(handle, "ROLLBACK")
 		
 		If Not result Or bmx_pgsql_PQresultStatus(result) <> PGRES_COMMAND_OK Then
-			setError("Error rolling back transaction", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(handle)), TDatabaseError.ERROR_TRANSACTION)
+			setError("Error rolling back transaction", bmx_pgsql_PQerrorMessage(handle), TDatabaseError.ERROR_TRANSACTION)
 			bmx_pgsql_PQclear(result)
 			Return False
 		End If
@@ -252,7 +410,7 @@ Type TDBPostgreSQL Extends TDBConnection
 		Local result:Byte Ptr = bmx_pgsql_PQexec(handle, "BEGIN")
 		
 		If Not result Or bmx_pgsql_PQresultStatus(result) <> PGRES_COMMAND_OK Then
-			setError("Error starting transaction", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(handle)), TDatabaseError.ERROR_TRANSACTION)
+			setError("Error starting transaction", bmx_pgsql_PQerrorMessage(handle), TDatabaseError.ERROR_TRANSACTION)
 			bmx_pgsql_PQclear(result)
 			Return False
 		End If
@@ -281,6 +439,9 @@ Type TDBPostgreSQL Extends TDBConnection
 		Return True
 	End Method
 
+	Function QuoteIdent:String(value:String)
+		Return "~q" + value.Replace("~q", "~q~q") + "~q"
+	End Function
 End Type
 
 
@@ -334,8 +495,7 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 		
 		cleanup()
 		
-		Local q:String = convertISO8859toUTF8(statement)
-		pgResult = bmx_pgsql_PQexec(conn.handle, q)
+		pgResult = bmx_pgsql_PQexec(conn.handle, statement)
 		
 		If Not pgResult Then
 			cleanup()
@@ -355,7 +515,7 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 				_queryRows = -1
 			Default
 				' an error!
-				conn.setError("Error executing statement", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(conn.handle)), TDatabaseError.ERROR_STATEMENT, 0)				
+				conn.setError("Error executing statement", bmx_pgsql_PQerrorMessage(conn.handle), TDatabaseError.ERROR_STATEMENT, 0)				
 				cleanup()
 				Return False
 		End Select
@@ -373,7 +533,7 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 			
 			For Local i:Int = 0 Until fieldCount
 				Local dtype:Int = bmx_pgsql_PQftype(pgResult, i)
-				Local qf:TQueryField = TQueryField.Create(convertUTF8toISO8859(bmx_pgsql_PQfname(pgResult, i)), dbTypeFromNative(Null, dtype))
+				Local qf:TQueryField = TQueryField.Create(bmx_pgsql_PQfname(pgResult, i), dbTypeFromNative(Null, dtype))
 				qf.length = bmx_pgsql_PQfsize(pgResult, i)
 				qf.precision = bmx_pgsql_PQfmod(pgResult, i)
 				qf.dtype = dtype
@@ -426,16 +586,14 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 			cleanup()
 		End If
 		
-		Local q:String = convertISO8859toUTF8(statement)
-		
-		pgResult = bmx_pgsql_PQprepare(conn.handle, _preparedStatementName, q)
+		pgResult = bmx_pgsql_PQprepare(conn.handle, _preparedStatementName, statement)
 
 		If Not pgResult Then
 			Return False
 		End If
 		
 		If bmx_pgsql_PQresultStatus(pgResult) <> PGRES_COMMAND_OK Then
-			conn.setError("Error preparing statement", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(conn.handle)), TDatabaseError.ERROR_STATEMENT, 0)				
+			conn.setError("Error preparing statement", bmx_pgsql_PQerrorMessage(conn.handle), TDatabaseError.ERROR_STATEMENT, 0)				
 			cleanup()
 			Return False
 		End If
@@ -494,12 +652,28 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 				Else
 					
 					Select values[i].kind()
+						Case DBTYPE_BYTE
+							s = String.FromInt(TDBByte(values[i]).value)
+							strings[i] = s.toCString()
+							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
+						Case DBTYPE_SHORT
+							s = String.FromInt(TDBShort(values[i]).value)
+							strings[i] = s.toCString()
+							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
 						Case DBTYPE_INT
 							s = String.fromInt(TDBInt(values[i]).value)
 							strings[i] = s.toCString()
 							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
+						Case DBTYPE_UINT
+							s = String.fromUInt(TDBUInt(values[i]).value)
+							strings[i] = s.toCString()
+							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
 						Case DBTYPE_LONG
 							s = String.fromLong(TDBLong(values[i]).value)
+							strings[i] = s.toCString()
+							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
+						Case DBTYPE_ULONG
+							s = String.fromULong(TDBULong(values[i]).value)
 							strings[i] = s.toCString()
 							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
 						Case DBTYPE_FLOAT
@@ -525,14 +699,19 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 							s = TDBTime(values[i]).getString()
 							strings[i] = s.toCString()
 							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
-						Default
-							Local s:String = convertISO8859toUTF8(values[i].getString())
+						Case DBTYPE_BOOL
+							If TDBBool(values[i]).getInt() Then
+								s = "t"
+							Else
+								s = "f"
+							End If
 							strings[i] = s.toCString()
+							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
+						Default
+							strings[i] = values[i].getString().ToUtF8String()
 							
 							bmx_pgsql_setParam(params, lengths, formats, i, strings[i], s.length)
 					End Select
-					
-					
 					
 				End If
 
@@ -583,7 +762,7 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 				_queryRows = -1
 			Default
 				' an error!
-				conn.setError("Error executing prepared statement", convertUTF8toISO8859(bmx_pgsql_PQerrorMessage(conn.handle)), TDatabaseError.ERROR_STATEMENT, 0)				
+				conn.setError("Error executing prepared statement", bmx_pgsql_PQerrorMessage(conn.handle), TDatabaseError.ERROR_STATEMENT, 0)				
 				cleanup()
 				Return False
 		End Select
@@ -601,7 +780,7 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 			
 			For Local i:Int = 0 Until fieldCount
 				Local dtype:Int = bmx_pgsql_PQftype(pgResult, i)
-				Local qf:TQueryField = TQueryField.Create(convertUTF8toISO8859(bmx_pgsql_PQfname(pgResult, i)), dbTypeFromNative(Null, dtype))
+				Local qf:TQueryField = TQueryField.Create(bmx_pgsql_PQfname(pgResult, i), dbTypeFromNative(Null, dtype))
 				qf.length = bmx_pgsql_PQfsize(pgResult, i)
 				qf.precision = bmx_pgsql_PQfmod(pgResult, i)
 				qf.dtype = dtype
@@ -662,11 +841,23 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 			
 				Select rec.fields[i].fType
 					Case DBTYPE_INT
-						values[i] = New TDBInt
-						values[i].setInt(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength).toInt())
+						If rec.fields[i].dtype = BOOLOID Then
+							Local v:String = String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength)
+							values[i] = New TDBInt
+							values[i].setInt(v = "t")
+						Else
+							values[i] = New TDBInt
+							values[i].setInt(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength).toInt())
+						End If
 					Case DBTYPE_LONG
 						values[i] = New TDBLong
 						values[i].setLong(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength).toLong())
+					Case DBTYPE_UINT
+						values[i] = New TDBUInt
+						values[i].setUInt(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength).toUInt())
+					Case DBTYPE_ULONG
+						values[i] = New TDBULong
+						values[i].setULong(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength).toULong())
 					Case DBTYPE_FLOAT
 						values[i] = New TDBFloat
 						values[i].SetFloat(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength).toFloat())
@@ -679,6 +870,9 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 							values[i] = TDBDateTime.SetFromString(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength))
 					Case DBTYPE_TIME
 							values[i] = TDBTime.SetFromString(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength))
+					Case DBTYPE_DECIMAL
+						values[i] = New TDBDecimal
+						values[i].setString(String.fromBytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength))
 					Case DBTYPE_BLOB
 						' get the escaped data
 						Local b:Byte Ptr = bmx_pgsql_PQgetvalue(pgResult, index + 1, i)
@@ -689,7 +883,7 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 						bmx_pgsql_PQfreemem(c)
 					Default
 						values[i] = New TDBString
-						values[i].setString(sizedUTF8toISO8859(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength))
+						values[i].setString(String.FromUTF8Bytes(bmx_pgsql_PQgetvalue(pgResult, index + 1, i), fieldLength))
 				End Select
 			
 				
@@ -707,9 +901,6 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 	End Method
 	
 	Method lastInsertedId:Long()
-		If _isActive And pgResult Then
-			Return Long(bmx_pgsql_PQoidValue(pgResult))
-		End If
 		Return -1
 	End Method
 	
@@ -722,13 +913,17 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 		Local dbType:Int
 		
 		Select _type
-			Case BOOLOID, INT2OID, INT4OID, VOIDOID, REGPROCOID, XIDOID, CIDOID
+			Case BOOLOID
+				dbType = DBTYPE_BOOL
+			Case INT2OID, INT4OID, VOIDOID, REGPROCOID, XIDOID, CIDOID
 				dbType = DBTYPE_INT
 			Case INT8OID
 				dbType = DBTYPE_LONG
 			Case FLOAT4OID
 				dbType = DBTYPE_FLOAT
-			Case NUMERICOID, FLOAT8OID
+			Case NUMERICOID
+				dbType = DBTYPE_DECIMAL
+			Case FLOAT8OID
 				dbType = DBTYPE_DOUBLE
 			Case DATEOID
 				dbType = DBTYPE_DATE
@@ -746,8 +941,6 @@ Type TPostgreSQLResultSet Extends TQueryResultSet
 	End Function
 
 End Type
-
-
 
 Type TPostgreSQLDatabaseLoader Extends TDatabaseLoader
 

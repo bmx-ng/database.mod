@@ -177,7 +177,9 @@ Type TDBMariaDB Extends TDBConnection
 				Local _type:String = rec.GetString(1).Split("(")[0]
 				Local dbType:Int
 				Select _type
-					Case "boolean", "bool", "tinyint", "smallint", "mediumint", "int", "integer"
+					Case "boolean", "bool"
+						dbType = DBTYPE_BOOL
+					Case "tinyint", "smallint", "mediumint", "int", "integer"
 						dbType = DBTYPE_INT
 					Case "bigint"
 						dbType = DBTYPE_LONG
@@ -232,6 +234,10 @@ Type TDBMariaDB Extends TDBConnection
 		End If
 		
 		Return table
+	End Method
+
+	Method tableExists:Int(tableName:String) Override
+		' TODO
 	End Method
 	
 	Method open:Int(user:String = Null, pass:String = Null)
@@ -763,7 +769,7 @@ Type TMySQLResultSet Extends TQueryResultSet
 							values[i] = TDBBlob.Set(mySQLFields[i].dataValue, fieldLength)
 						Default
 							values[i] = New TDBString
-							values[i].setString(sizedUTF8toISO8859(mySQLFields[i].dataValue, fieldLength))
+							values[i].setString(String.FromUTF8Bytes(mySQLFields[i].dataValue, fieldLength))
 					End Select
 					
 				End If

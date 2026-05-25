@@ -1,4 +1,4 @@
-' Copyright (c) 2007-2023, Bruce A Henderson
+' Copyright (c) 2007-2026, Bruce A Henderson
 ' All rights reserved.
 '
 ' Redistribution and use in source and binary forms, with or without
@@ -72,19 +72,19 @@ Const BYTEAOID:Int = 17                   ' byte array
 
 Extern
 	Function bmx_pgsql_PQfinish(handle:Byte Ptr)
-	Function bmx_pgsql_PQconnectdb:Byte Ptr(info:Byte Ptr)
+	Function bmx_pgsql_PQconnectdb:Byte Ptr(info:String)
 	Function bmx_pgsql_PQstatus:Int(handle:Byte Ptr)
 	
-	Function bmx_pgsql_PQerrorMessage:Byte Ptr(handle:Byte Ptr)
+	Function bmx_pgsql_PQerrorMessage:String(handle:Byte Ptr)
 	
-	Function bmx_pgsql_PQexec:Byte Ptr(handle:Byte Ptr, query:Byte Ptr)
+	Function bmx_pgsql_PQexec:Byte Ptr(handle:Byte Ptr, query:String)
 	Function bmx_pgsql_PQresultStatus:Int(result:Byte Ptr)
 	Function bmx_pgsql_PQclear(result:Byte Ptr)
 	Function bmx_pgsql_PQntuples:Int(result:Byte Ptr)
 	Function bmx_pgsql_PQnfields:Int(result:Byte Ptr)
 	Function bmx_pgsql_PQcmdTuples:Byte Ptr(result:Byte Ptr)
 	
-	Function bmx_pgsql_PQfname:Byte Ptr(result:Byte Ptr, index:Int)
+	Function bmx_pgsql_PQfname:String(result:Byte Ptr, index:Int)
 	Function bmx_pgsql_PQftype:Int(result:Byte Ptr, index:Int)
 	Function bmx_pgsql_PQfsize:Int(result:Byte Ptr, index:Int)
 	Function bmx_pgsql_PQfmod:Int(result:Byte Ptr, index:Int)
@@ -92,7 +92,7 @@ Extern
 	Function bmx_pgsql_PQgetlength:Int(result:Byte Ptr, row:Int, index:Int)
 	Function bmx_pgsql_PQgetvalue:Byte Ptr(result:Byte Ptr, row:Int, index:Int)
 	
-	Function bmx_pgsql_PQprepare:Byte Ptr(handle:Byte Ptr, stmtName:Byte Ptr, query:Byte Ptr)
+	Function bmx_pgsql_PQprepare:Byte Ptr(handle:Byte Ptr, stmtName:String, query:String)
 	Function bmx_pgsql_PQdescribePrepared:Byte Ptr(result:Byte Ptr, name:Byte Ptr)
 	Function bmx_pgsql_PQnparams:Int(result:Byte Ptr)
 	Function bmx_pgsql_createParamValues:Byte Ptr(size:Int)
@@ -103,10 +103,15 @@ Extern
 	Function bmx_pgsql_setNullParam(params:Byte Ptr, index:Int)
 	Function bmx_pgsql_setParam(params:Byte Ptr, lengths:Int Ptr, formats:Int Ptr, index:Int, Text:Byte Ptr, length:Int)
 	Function bmx_pgsql_setParamBinary(params:Byte Ptr, lengths:Int Ptr, formats:Int Ptr, index:Int, data:Byte Ptr, length:Int)
-	Function bmx_pgsql_PQexecPrepared:Byte Ptr(handle:Byte Ptr, stmtName:Byte Ptr, size:Int, params:Byte Ptr, lengths:Int Ptr, formats:Int Ptr)
+	Function bmx_pgsql_PQexecPrepared:Byte Ptr(handle:Byte Ptr, stmtName:String, size:Int, params:Byte Ptr, lengths:Int Ptr, formats:Int Ptr)
 	Function bmx_pgsql_PQunescapeBytea:Byte Ptr(data:Byte Ptr, length:Int Ptr)
 	Function bmx_pgsql_PQfreemem(data:Byte Ptr)
 
 	Function bmx_pgsql_PQoidValue:UInt(result:Byte Ptr)
 	
+	Function bmx_pgsql_createStringArray:Byte Ptr(size:Int)
+	Function bmx_pgsql_setStringArrayValue(params:Byte Ptr, index:Int, value:String)
+	Function bmx_pgsql_deleteStringArray(params:Byte Ptr, count:Int)
+	Function bmx_pgsql_PQconnectdbParams:Byte Ptr(keywords:Byte Ptr, values:Byte Ptr)
+
 End Extern
