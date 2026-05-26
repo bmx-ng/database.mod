@@ -152,7 +152,12 @@ Type TOrmRegistry
 	End Method
 End Type
 
-
+Rem
+bbdoc: The #TOrm class provides methods for registering models, creating tables, and performing CRUD operations.
+about: It uses a #TOrmRegistry to keep track of registered models and their corresponding DAOs. The #TOrmDialect class defines
+database-specific behaviour such as quoting identifiers and mapping field types to SQL types. The #TOrmDaoBase class provides
+basic data access operations for a specific model.
+End Rem
 Type TOrm
 
     Field db:TDBConnection
@@ -164,6 +169,12 @@ Type TOrm
 
 	Field jconv:TJConv
 
+	Rem
+	bbdoc: Creates a new #TOrm instance for the specified database type and connection parameters.
+	returns: A new #TOrm instance connected to the specified database.
+	about: The #dbType parameter determines which database driver and dialect to use (e.g. "POSTGRESQL", "SQLITE").
+	The other parameters are passed to the database driver when creating the connection.
+	End Rem
 	Function Create:TOrm(dbType:String, dbname:String = Null, host:String = Null, ..
 			port:Int = Null, user:String = Null, password:String = Null, server:String = Null, ..
 			options:String = Null)
@@ -191,10 +202,20 @@ Type TOrm
 		End If
 	End Method
 
+	Rem
+	bbdoc: Registers a model type with the ORM. This is typically called by a #TOrmDaoBase subclass for its model type.
+	about: The @typeName parameter is the name of the model type to register. The ORM will use reflection to build a #TOrmModel
+	for the type and store it in the registry.
+	End Rem
 	Method RegisterType:TOrmModel(typeName:String)
 		Return GetOrBuildModelForName(typeName)
 	End Method
 
+	Rem
+	bbdoc: Gets the #TOrmModel for the specified type name, building it if it does not already exist in the registry.
+	about: The @typeName parameter is the name of the model type. The ORM will use reflection to build a #TOrmModel for the type
+	if it is not already in the registry.
+	End Rem
 	Method GetOrBuildModelForName:TOrmModel(typeName:String)
 		Local ty:TTypeId = TTypeId.ForName(typeName)
 		If Not ty Then
@@ -204,6 +225,11 @@ Type TOrm
 		Return GetOrBuildModelForType(ty)
 	End Method
 
+	Rem
+	bbdoc: Gets the #TOrmModel for the specified type, building it if it does not already exist in the registry.
+	about: The @typeId parameter is the type identifier of the model. The ORM will use reflection to build a #TOrmModel for the type
+	if it is not already in the registry.
+	End Rem
 	Method GetOrBuildModelForType:TOrmModel(typeId:TTypeId)
 		If registry.models.ContainsKey(typeId) Then
 			Return registry.models[typeId]
@@ -212,6 +238,11 @@ Type TOrm
 		Return builder.BuildModel(typeId)
 	End Method
 
+	Rem
+	bbdoc: Creates a table in the database for the specified model type.
+	about: The model should already be registered. This can be achieved by calling #RegisterType or #GetOrBuildModelForName, or by
+	accessing the DAO for the model's type, which will trigger registration if it has not already been registered.
+	End Rem
 	Method CreateTable(typeName:String)
 		Local model:TOrmModel = registry.GetModelForName(typeName)
 		If model Then
@@ -221,6 +252,9 @@ Type TOrm
 		End If
 	End Method
 
+	Rem
+	bbdoc: Creates a table in the database for the specified model.
+	End Rem
 	Method CreateTable(model:TOrmModel)
 		Local sql:String = BuildCreateTableSql(model)
 		db.ExecuteQuery(sql)
@@ -273,6 +307,10 @@ Type TOrm
 		Self.jconv = jconv
 	End Method
 
+	Rem
+	bbdoc: Starts a new transaction.
+	about: The returned #TOrmTransaction object can be used in a #Using block to ensure the transaction is properly committed or rolled back.
+	End Rem
 	Method StartTransaction:TOrmTransaction(isStrict:Int = True)
 		Return New TOrmTransaction(Self, isStrict)
 	End Method
@@ -310,10 +348,16 @@ Type TOrm
 		Return sql.ToString()
 	End Method
 
+	Rem
+	bbdoc: Validates the database schema against the registered models and returns a report of any issues found.
+	End Rem
 	Method ValidateOnStartup:TOrmSchemaValidationReport()
 		Return ValidateAllModels()
 	End Method
 
+	Rem
+	bbdoc: Validates the database schema against the registered models and throws an exception if any issues are found.
+	End Rem
 	Method ValidateOnStartupOrThrow()
 		Local report:TOrmSchemaValidationReport = ValidateOnStartup()
 
@@ -322,6 +366,9 @@ Type TOrm
 		End If
 	End Method
 
+	Rem
+	bbdoc: Validates the database schema against all registered models and returns a report of any issues found.
+	End Rem
 	Method ValidateAllModels:TOrmSchemaValidationReport()
 		Local report:TOrmSchemaValidationReport = New TOrmSchemaValidationReport
 
@@ -903,10 +950,19 @@ Type TOrmDaoBase
 
 	End Method
 
+	Rem
+	bbdoc: Convenience method to count all records in the table for this model.
+	End Rem
 	Method CountAll:Long()
 		Return CountWhere(Null, TOrmParams(Null))
 	End Method
 
+	Rem
+	bbdoc: Counts the number of records matching the specified where clause and parameters.
+	returns: The count of records matching the where clause.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records.
+	The @params parameter is an optional #TOrmParams object containing the values for any placeholders in the where clause.
+	End Rem
 	Method CountWhere:Long(whereSql:String, params:TOrmParams = Null)
 		Local sql:String = BuildCountWhereSql(whereSql)
 		Local query:TDatabaseQuery = PrepareQuery(sql)
@@ -939,22 +995,48 @@ Type TOrmDaoBase
 		Return sql.ToString()
 	End Method
 
+	Rem
+	bbdoc: Convenience method to count records matching a where clause with a single integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the integer value to bind to the placeholder in the where clause.
+	End Rem
 	Method CountWhere:Long(whereSql:String, value:Int)
 		Return CountWhere(whereSql, Params().AddInt(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to count records matching a where clause with a single long integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the long integer value to bind to the placeholder in the where clause.
+	End Rem
 	Method CountWhere:Long(whereSql:String, value:Long)
 		Return CountWhere(whereSql, Params().AddLong(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to count records matching a where clause with a single string parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "name = ?").
+	The @value parameter is the string value to bind to the placeholder in the where clause.
+	End Rem
 	Method CountWhere:Long(whereSql:String, value:String)
 		Return CountWhere(whereSql, Params().AddString(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to count records matching a where clause with a single double parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "price < ?").
+	The @value parameter is the double value to bind to the placeholder in the where clause.
+	End Rem
 	Method CountWhere:Long(whereSql:String, value:Double)
 		Return CountWhere(whereSql, Params().AddDouble(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to check if any records exist matching a where clause with the specified parameters.
+	returns: #True if at least one record exists matching the where clause, #False otherwise.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records.
+	The @params parameter is an optional #TOrmParams object containing the values for any placeholders in the where clause.
+	End Rem
 	Method ExistsWhere:Int(whereSql:String, params:TOrmParams = Null)
 		Local sql:String = BuildExistsWhereSql(whereSql)
 		Local query:TDatabaseQuery = PrepareQuery(sql)
@@ -986,22 +1068,52 @@ Type TOrmDaoBase
 		Return sql.ToString()
 	End Method
 
+	Rem
+	bbdoc: Convenience method to check if any records exist matching a where clause with a single integer parameter.
+	returns: #True if at least one record exists matching the where clause, #False otherwise.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the integer value to bind to the placeholder in the where clause.
+	End Rem
 	Method ExistsWhere:Int(whereSql:String, value:Int)
 		Return ExistsWhere(whereSql, Params().AddInt(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to check if any records exist matching a where clause with a single long integer parameter.
+	returns: #True if at least one record exists matching the where clause, #False otherwise.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the long integer value to bind to the placeholder in the where clause.
+	End Rem
 	Method ExistsWhere:Int(whereSql:String, value:Long)
 		Return ExistsWhere(whereSql, Params().AddLong(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to check if any records exist matching a where clause with a single string parameter.
+	returns: #True if at least one record exists matching the where clause, #False otherwise.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "name = ?").
+	The @value parameter is the string value to bind to the placeholder in the where clause.
+	End Rem
 	Method ExistsWhere:Int(whereSql:String, value:UInt)
 		Return ExistsWhere(whereSql, Params().AddUInt(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to check if any records exist matching a where clause with a single unsigned long integer parameter.
+	returns: #True if at least one record exists matching the where clause, #False otherwise.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the unsigned long integer value to bind to the placeholder in the where clause.
+	End Rem
 	Method ExistsWhere:Int(whereSql:String, value:ULong)
 		Return ExistsWhere(whereSql, Params().AddULong(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to check if any records exist matching a where clause with a single double parameter.
+	returns: #True if at least one record exists matching the where clause, #False otherwise.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single placeholder for the parameter (e.g. "price < ?").
+	The @value parameter is the double value to bind to the placeholder in the where clause.
+	End Rem
 	Method ExistsWhere:Int(whereSql:String, value:String)
 		Return ExistsWhere(whereSql, Params().AddString(value))
 	End Method
@@ -1071,6 +1183,12 @@ Type TOrmDaoBase
 		End If
 	End Method
 
+	Rem
+	bbdoc: Removes records matching the specified where clause and parameters, and returns the number of records removed.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records for deletion.
+	The @params parameter is an optional #TOrmParams object containing the values for any placeholders in the where clause.
+	The method returns the number of records that were removed.
+	End Rem
 	Method RemoveWhere:Int(whereSql:String, params:TOrmParams = Null)
 		Local sql:String = BuildRemoveWhereSql(whereSql)
 		Local query:TDatabaseQuery = PrepareQuery(sql)
@@ -1101,52 +1219,110 @@ Type TOrmDaoBase
 		Return sql.ToString()
 	End Method
 
+	Rem
+	bbdoc: Convenience method to remove records matching a where clause with a single integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records for deletion, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the integer value to bind to the placeholder in the where clause.
+	The method returns the number of records that were removed.
+	End Rem
 	Method RemoveWhere:Int(whereSql:String, value:Int)
 		Return RemoveWhere(whereSql, Params().AddInt(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to remove records matching a where clause with a single long integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records for deletion, containing a single placeholder for the parameter (e.g. "age > ?").
+	The @value parameter is the long integer value to bind to the placeholder in the where clause.
+	The method returns the number of records that were removed.
+	End Rem
 	Method RemoveWhere:Int(whereSql:String, value:Long)
 		Return RemoveWhere(whereSql, Params().AddLong(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to remove records matching a where clause with a single string parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records for deletion, containing a single placeholder for the parameter (e.g. "name = ?").
+	The @value parameter is the string value to bind to the placeholder in the where clause.
+	The method returns the number of records that were removed.
+	End Rem
 	Method RemoveWhere:Int(whereSql:String, value:String)
 		Return RemoveWhere(whereSql, Params().AddString(value))
 	End Method
 
 End Type
 
+Rem
+bbdoc: Generic Data Access Object (DAO) class for performing CRUD operations on a specific model type.
+End Rem
 Type TOrmDao<T> Where T Extends Object Extends TOrmDaoBase
 
+	Rem
+	bbdoc: Initializes the DAO for the specified model type.
+	about: The @orm parameter is the TOrm instance that this DAO will use to access the database. The @typeName parameter is the name of the model type that this DAO will manage (e.g. "User"). The method retrieves the TOrmModel for the specified type name from the TOrm instance and stores it for use in CRUD operations.
+	The method returns the initialized DAO instance for chaining.
+	End Rem
 	Method Init:TOrmDao<T>(orm:TOrm, typeName:String)
 		Self.orm = orm
 		Self.model = orm.GetOrBuildModelForName(typeName)
 		Return Self
 	End Method
 
+	Rem
+	bbdoc: Saves (creates a new record for) the given object to the database.
+	about: If the object's primary key field is auto-generated, the generated ID will be set back on the object after saving.
+	The @obj parameter is the object to save. It must be an instance of the model type associated with this DAO.
+	End Rem
 	Method Save(obj:T)
 		SaveObject(obj)
 	End Method
 
+	Rem
+	bbdoc: Updates the corresponding database record for the given object.
+	about: The object must have a valid primary key value that corresponds to an existing record in the database. The method will update all fields of the record based on the current values in the object.
+	The @obj parameter is the object to update. It must be an instance of the model type associated with this DAO.
+	End Rem
 	Method Update(obj:T)
 		UpdateObject(obj)
 	End Method
 
+	Rem
+	bbdoc: Removes the corresponding database record for the given object.
+	about: The object must have a valid primary key value that corresponds to an existing record in the database. The method will delete that record from the database.
+	The @obj parameter is the object to remove. It must be an instance of the model type associated with this DAO.
+	End Rem
 	Method Remove(obj:T)
 		RemoveObject(obj)
 	End Method
 
+	Rem
+	bbdoc: Finds and returns the object with the specified primary key value.
+	about: The @id parameter is the value of the primary key for the record to find. The method returns an instance of the model type associated with this DAO, populated with the data from the database record with the matching primary key. If no record is found with the specified primary key, the method returns #Null.
+	End Rem
 	Method FindById:T(id:Int)
 		Return T(FindByIdObject(id))
 	End Method
 
+	Rem
+	bbdoc: Finds and returns the object with the specified primary key value.
+	about: The @id parameter is the value of the primary key for the record to find. The method returns an instance of the model type associated with this DAO, populated with the data from the database record with the matching primary key. If no record is found with the specified primary key, the method returns #Null.
+	End Rem
 	Method FindById:T(id:Long)
 		Return T(FindByIdObject(id))
 	End Method
 
+	Rem
+	bbdoc: Finds and returns the object with the specified primary key value.
+	about: The @id parameter is the value of the primary key for the record to find. The method returns an instance of the model type associated with this DAO, populated with the data from the database record with the matching primary key. If no record is found with the specified primary key, the method returns #Null.
+	End Rem
 	Method FindById:T(id:String)
 		Return T(FindByIdObject(id))
 	End Method
 
+	Rem
+	bbdoc: Finds and returns all objects of the model type associated with this DAO, optionally ordered and paginated.
+	about: The @orderBy parameter is an optional TOrmOrder object that specifies the ordering of the results. The @limit parameter specifies the maximum number of records to return (0 for no limit). The @offset parameter specifies the number of records to skip before starting to return results (used for pagination).
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the database records. If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindAll:TArrayList<T>(orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Local results:TArrayList<T> = New TArrayList<T>
 		Local collector:TOrmTypedResultCollector<T> = New TOrmTypedResultCollector<T>(results)
@@ -1154,6 +1330,16 @@ Type TOrmDao<T> Where T Extends Object Extends TOrmDaoBase
 		Return results
 	End Method
 
+	Rem
+	bbdoc: Finds and returns all objects of the model type associated with this DAO that match the specified where clause and parameters, optionally ordered and paginated.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records. The @params parameter is
+	an optional TOrmParams object containing the values for any placeholders in the where clause. The @orderBy parameter is an optional
+	TOrmOrder object that specifies the ordering of the results. The @limit parameter specifies the maximum number of records to return
+	(0 for no limit). The @offset parameter specifies the number of records to skip before starting to return results (used for pagination).
+	
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the database
+	records that match the where clause. If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindWhere:TArrayList<T>(whereSql:String, params:TOrmParams = Null, orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Local results:TArrayList<T> = New TArrayList<T>
 		Local collector:TOrmTypedResultCollector<T> = New TOrmTypedResultCollector<T>(results)
@@ -1163,46 +1349,149 @@ Type TOrmDao<T> Where T Extends Object Extends TOrmDaoBase
 		Return results
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find records matching a where clause with a single integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the integer value to bind to the placeholder
+	in the where clause. The @orderBy parameter is an optional TOrmOrder object that specifies the ordering of the results.
+	The @limit parameter specifies the maximum number of records to return (0 for no limit). The @offset parameter specifies
+	the number of records to skip before starting to return results (used for pagination).
+	
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the
+	database records that match the where clause.
+	If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindWhere:TArrayList<T>(whereSql:String, value:Int, orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Return FindWhere(whereSql, Params().AddInt(value), orderBy, limit, offset)
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find records matching a where clause with a single long integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the long integer value to bind to the placeholder in
+	the where clause. The @orderBy parameter is an optional TOrmOrder object that specifies the ordering of the results. The
+	@limit parameter specifies the maximum number of records to return (0 for no limit). The @offset parameter specifies the number
+	of records to skip before starting to return results (used for pagination).
+
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the
+	database records that match the where clause. If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindWhere:TArrayList<T>(whereSql:String, value:Long, orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Return FindWhere(whereSql, Params().AddLong(value), orderBy, limit, offset)
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find records matching a where clause with a single unsigned integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the unsigned integer value to bind to the placeholder in
+	the where clause. The @orderBy parameter is an optional TOrmOrder object that specifies the ordering of the results. The
+	@limit parameter specifies the maximum number of records to return (0 for no limit). The @offset parameter specifies the number
+	of records to skip before starting to return results (used for pagination).
+
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the
+	database records that match the where clause. If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindWhere:TArrayList<T>(whereSql:String, value:UInt, orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Return FindWhere(whereSql, Params().AddUInt(value), orderBy, limit, offset)
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find records matching a where clause with a single unsigned long integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the unsigned long integer value to bind to the placeholder in
+	the where clause. The @orderBy parameter is an optional TOrmOrder object that specifies the ordering of the results. The
+	@limit parameter specifies the maximum number of records to return (0 for no limit). The @offset parameter specifies the number
+	of records to skip before starting to return results (used for pagination).
+
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the
+	database records that match the where clause. If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindWhere:TArrayList<T>(whereSql:String, value:ULong, orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Return FindWhere(whereSql, Params().AddULong(value), orderBy, limit, offset)
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find records matching a where clause with a single string parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the string value to bind to the placeholder in
+	the where clause. The @orderBy parameter is an optional TOrmOrder object that specifies the ordering of the results. The
+	@limit parameter specifies the maximum number of records to return (0 for no limit). The @offset parameter specifies the number
+	of records to skip before starting to return results (used for pagination).
+
+	The method returns a TArrayList of objects of the model type associated with this DAO, populated with the data from the
+	database records that match the where clause. If no records are found, the method returns an empty TArrayList.
+	End Rem
 	Method FindWhere:TArrayList<T>(whereSql:String, value:String, orderBy:TOrmOrder = Null, limit:Int = 0, offset:Int = 0)
 		Return FindWhere(whereSql, Params().AddString(value), orderBy, limit, offset)
 	End Method
 
+	Rem
+	bbdoc: Finds and returns a single object of the model type associated with this DAO that matches the specified where clause and parameters.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records. The @params parameter
+	is an optional TOrmParams object containing the values for any placeholders in the where clause. The method returns
+	a single instance of the model type associated with this DAO, populated with the data from the first database record that
+	matches the where clause. If no records are found that match the where clause, the method returns #Null.
+	End Rem
 	Method FindOneWhere:T(whereSql:String, params:TOrmParams = Null)
 		Return T(FindOneWhereObject(whereSql, params))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find a single record matching a where clause with a single integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the integer value to bind to the placeholder in the
+	where clause. The method returns a single instance of the model type associated with this DAO, populated with the data from
+	the first database record that matches the where clause. If no records are found that match the where clause, the method
+	returns #Null.
+	End Rem
 	Method FindOneWhere:T(whereSql:String, value:Int)
 		Return FindOneWhere(whereSql, Params().AddInt(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find a single record matching a where clause with a single long parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the long value to bind to the placeholder in the
+	where clause. The method returns a single instance of the model type associated with this DAO, populated with the data from
+	the first database record that matches the where clause. If no records are found that match the where clause, the method
+	returns #Null.
+	End Rem
 	Method FindOneWhere:T(whereSql:String, value:Long)
 		Return FindOneWhere(whereSql, Params().AddLong(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find a single record matching a where clause with a single unsigned integer parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the unsigned integer value to bind to the placeholder in the
+	where clause. The method returns a single instance of the model type associated with this DAO, populated with the data from
+	the first database record that matches the where clause. If no records are found that match the where clause, the method
+	returns #Null.
+	End Rem
 	Method FindOneWhere:T(whereSql:String, value:UInt)
 		Return FindOneWhere(whereSql, Params().AddUInt(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find a single record matching a where clause with a single unsigned long parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the long value to bind to the placeholder in the
+	where clause. The method returns a single instance of the model type associated with this DAO, populated with the data from
+	the first database record that matches the where clause. If no records are found that match the where clause, the method
+	returns #Null.
+	End Rem
 	Method FindOneWhere:T(whereSql:String, value:ULong)
 		Return FindOneWhere(whereSql, Params().AddULong(value))
 	End Method
 
+	Rem
+	bbdoc: Convenience method to find a single record matching a where clause with a single string parameter.
+	about: The @whereSql parameter is the SQL WHERE clause (without the "WHERE" keyword) to filter records, containing a single
+	placeholder for the parameter (e.g. "age > ?"). The @value parameter is the string value to bind to the placeholder in the
+	where clause. The method returns a single instance of the model type associated with this DAO, populated with the data from
+	the first database record that matches the where clause. If no records are found that match the where clause, the method
+	returns #Null.
+	End Rem
 	Method FindOneWhere:T(whereSql:String, value:String)
 		Return FindOneWhere(whereSql, Params().AddString(value))
 	End Method
@@ -1739,6 +2028,10 @@ Type TOrmParams
 
 End Type
 
+Rem
+bbdoc: Represents the result of validating the ORM schema.
+about: Contains a list of issues found during validation, if any.
+End Rem
 Type TOrmSchemaValidationReport
 
 	Field issues:TArrayList<TOrmSchemaValidationIssue> = New TArrayList<TOrmSchemaValidationIssue>
@@ -1767,6 +2060,9 @@ Type TOrmSchemaValidationReport
 
 End Type
 
+Rem
+bbdoc: Represents a single issue found during ORM schema validation.
+End Rem
 Type TOrmSchemaValidationIssue
 
 	Field model:TOrmModel
@@ -1774,26 +2070,41 @@ Type TOrmSchemaValidationIssue
 
 End Type
 
+Rem
+bbdoc: Represents an ordering for a query, consisting of multiple order items.
+End Rem
 Type TOrmOrder
 
 	Field items:TArrayList<TOrmOrderItem> = New TArrayList<TOrmOrderItem>
 
+	Rem
+	bbdoc: Creates a new TOrmOrder with a single order item for the specified field name, defaulting to ascending order.
+	End Rem
 	Function By:TOrmOrder(fieldName:String)
 		Local order:TOrmOrder = New TOrmOrder
 		order.items.Add(New TOrmOrderItem(fieldName, True))
 		Return order
 	End Function
 
+	Rem
+	bbdoc: Sets the last added order item to ascending order.
+	End Rem
 	Method Asc:TOrmOrder()
 		TOrmOrderItem(items.Get(items.Count() - 1)).ascending = True
 		Return Self
 	End Method
 
+	Rem
+	bbdoc: Sets the last added order item to descending order.
+	End Rem
 	Method Desc:TOrmOrder()
 		TOrmOrderItem(items.Get(items.Count() - 1)).ascending = False
 		Return Self
 	End Method
 
+	Rem
+	bbdoc: Adds an additional order item for the specified field name, defaulting to ascending order.
+	End Rem
 	Method ThenBy:TOrmOrder(fieldName:String)
 		items.Add(New TOrmOrderItem(fieldName, True))
 		Return Self
@@ -1815,30 +2126,45 @@ End Type
 
 ' exceptions
 
+Rem
+bbdoc: Base exception type for ORM-related errors.
+End Rem
 Type TOrmException Extends TRuntimeException
 	Method New(message:String)
 		Super.New(message)
 	End Method
 End Type
 
+Rem
+bbdoc: Exception thrown when a specified ORM type is not found.
+End Rem
 Type TOrmTypeNotFoundException Extends TOrmException
 	Method New(typeName:String)
 		Super.New("Type not found: " + typeName)
 	End Method
 End Type
 
+Rem
+bbdoc: Exception thrown when multiple primary keys are defined in an ORM type.
+End Rem
 Type TOrmMultiplePrimaryKeysException Extends TOrmException
 	Method New(typeName:String)
 		Super.New("Multiple primary keys defined in type: " + typeName)
 	End Method
 End Type
 
+Rem
+bbdoc: Exception thrown when ORM schema validation fails, containing a report of the issues found.
+End Rem
 Type TOrmSchemaValidationException Extends TOrmException
 	Method New(report:TOrmSchemaValidationReport)
 		Super.New("Schema validation failed:~n" + report.ToString())
 	End Method
 End Type
 
+Rem
+bbdoc: Exception thrown for database-related errors during ORM operations, containing the SQL that caused the error and the database error details.
+End Rem
 Type TOrmDatabaseException Extends TOrmException
 
 	Field sql:String

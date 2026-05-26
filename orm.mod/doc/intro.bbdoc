@@ -1,0 +1,855 @@
+# Database.Orm
+
+## Introduction
+
+Modern applications spend a great deal of their time moving data between objects in memory and rows in a database. Traditionally this involves writing SQL statements by hand, executing queries manually, reading values back out of result sets, converting them into BlitzMax types, and repeating the process throughout an application.
+
+For small projects this approach can work well enough, but as applications grow it often leads to a large amount of repetitive boilerplate code. Every new type requires another collection of insert, update, delete and select statements. Renaming a field means updating SQL in multiple places. Supporting more than one database backend introduces another layer of complexity, as different systems vary in syntax, data types and parameter handling.
+
+An Object Relational Mapper, or ORM, attempts to solve these problems by allowing normal BlitzMax objects to be persisted directly to a relational database. Rather than manually describing every column and query, the ORM can inspect a type using reflection, determine how it should be represented in the database, and automatically handle much of the repetitive persistence logic.
+
+The #Database.Orm module provides a lightweight reflection-driven ORM for BlitzMax. It is designed around a few simple goals:
+
+* Persist ordinary BlitzMax objects with minimal configuration.
+* Reduce repetitive SQL boilerplate while still allowing direct SQL when needed.
+* Support multiple database backends through dialect implementations.
+* Keep the API explicit and understandable rather than hiding behaviour behind large frameworks.
+* Integrate naturally with existing `Database.*` modules.
+
+Unlike larger enterprise ORM systems, #Database.Orm does not attempt to completely abstract away SQL or database concepts. Tables, indexes, transactions and queries remain visible parts of the API. The intention is to provide a practical persistence layer without turning database access into a "magic" system that becomes difficult to reason about.
+
+At the core of the ORM is BlitzMax reflection. When a type is registered, the ORM examines its fields and metadata using `BRL.Reflection`. From this information it constructs an internal model describing the table, columns, primary keys, indexes and field mappings required to persist instances of that type.
+
+A simple BlitzMax type such as:
+
+```blitzmax
+Type TUser { table = "users" }
+
+	Field id:Long { pk auto }
+	Field name:String
+	Field email:String { unique }
+	Field age:Int
+	Field isActive:Int { bool }
+
+End Type
+```
+
+contains enough information for the ORM to automatically:
+
+* create a matching database table,
+* generate insert and update statements,
+* load rows back into BlitzMax objects,
+* handle generated primary keys,
+* and validate the schema at startup.
+
+The ORM is also database agnostic. SQL generation is delegated to database dialect implementations, allowing the same model definitions to operate across different database backends. Current implementations include:
+
+* #Database.OrmSQLite
+* #Database.OrmPostgreSQL
+
+which build upon:
+
+* #Database.SQLite
+* #Database.PostgreSQL
+
+Additional dialects can be added independently of the core ORM. This separation allows each backend to deal with its own quirks, such as identifier quoting, auto-generated primary keys, placeholder syntax and native type mappings, while application code remains unchanged.
+
+The ORM supports a variety of BlitzMax field types, including primitive numeric types, strings, decimals, enums and JSON-serialized object fields. Reflection-based conversion handles both persistence to the database and reconstruction of objects when rows are loaded back into memory.
+
+Although the ORM automates much of the persistence process, it is intentionally designed to remain transparent. Generated tables and queries follow predictable rules, SQL can still be written directly when required, and the underlying database APIs remain accessible.
+
+The following sections introduce the basic workflow of using the ORM, beginning with creating a database connection, defining a model type, and persisting objects.
+
+
+## Creating an ORM Instance
+
+Before objects can be persisted, an ORM instance must first be created. The ORM itself acts as the central entry point for database access, model registration, schema management and transactions.
+
+An ORM instance is created using #TOrm.Create, which internally creates both a database connection and the appropriate SQL dialect implementation for the selected backend.
+
+For example, to create an SQLite-backed ORM:
+
+```blitzmax
+Local orm:TOrm = TOrm.Create("SQLITE", "example.db")
+```
+
+or for PostgreSQL:
+
+```blitzmax
+Local orm:TOrm = TOrm.Create( ..
+	"POSTGRESQL", ..
+	"maxtest", ..
+	"localhost", ..
+	5432, ..
+	"user", ..
+	"pass")
+```
+
+The exact connection parameters depend on the database backend being used, but the ORM API itself remains the same regardless of the underlying database.
+
+Once created, the ORM maintains:
+
+* the underlying database connection,
+* the active SQL dialect,
+* the registered model definitions,
+* and cached DAO instances.
+
+The ORM itself does not immediately know about application types. Types must first be registered so that reflection metadata can be inspected and converted into an internal model representation.
+
+## Defining a Model
+
+A model is simply a normal BlitzMax type whose fields should be persisted to a database table.
+
+For example:
+
+```blitzmax
+Type TUser { table = "users" }
+
+	Field id:Long { pk auto }
+
+	Field name:String
+	Field email:String { unique }
+
+	Field age:Int
+
+	Field isActive:Int { bool }
+
+End Type
+```
+
+This type describes both the in-memory structure of the object and how it should be stored in the database.
+
+The ORM uses reflection to inspect the type and build a model automatically. Each field becomes a database column, while metadata provides additional persistence rules.
+
+The optional type metadata:
+
+```blitzmax
+{ table = "users" }
+```
+
+specifies the database table name. If omitted, the ORM automatically derives a table name from the type name using its configured naming strategy.
+
+Field metadata controls column behaviour:
+
+| Metadata | Description |
+|---|---|
+| `{ pk }` | Marks the field as the primary key |
+| `{ auto }` | Indicates an auto-generated primary key |
+| `{ unique }` | Creates a unique constraint |
+| `{ nullable }` | Allows the column to contain NULL |
+| `{ bool }` | Persists the field as a boolean value |
+| `{ json }` | Serializes the field as JSON |
+| `{ enum_string }` | Stores enum values as strings rather than numeric ordinals |
+| `{ transient }` | Excludes the field from persistence |
+| `{ column = "name" }` | Overrides the generated column name |
+| `{ index }` | Creates an index for the column |
+| `{ index = "name" }` | Adds the column to a named multi-column index |
+
+The ORM attempts to infer sensible defaults wherever possible. Primitive numeric types map to numeric database columns, strings map to text columns, and enums map to their underlying numeric representation unless overridden.
+
+When multiple fields share the same index name, the ORM generates a composite index covering all matching columns. Currently, the order of columns within a composite index follows the declaration order of the fields within the type.
+
+For example:
+
+```blitzmax
+Type TPerson
+
+	Field firstName:String { index = "idx_name" }
+	Field lastName:String { index = "idx_name" }
+
+End Type
+```
+
+results in a multi-column index covering both `first_name` and `last_name`.
+
+Fields marked with `{ transient }` are ignored entirely by the ORM and are never persisted to the database. This can be useful for temporary state, cached values or computed data that should remain purely in memory.
+
+
+## Creating a DAO
+
+Application code typically interacts with persisted types through a #TOrmDao instance.
+
+For example:
+
+```blitzmax
+Local users:TOrmDao<TUser> = New TOrmDao<TUser>.Init(orm, "TUser")
+```
+
+The DAO provides the primary persistence API for a model type, including saving, updating, removing and querying objects.
+
+During initialization, the DAO automatically ensures that the corresponding model type has been registered with the ORM. In most applications it is therefore unnecessary to call #TOrm.RegisterType manually.
+
+Internally, registration uses reflection to inspect the type and construct a #TOrmModel representation describing:
+
+* the table name,
+* the mapped fields,
+* the primary key,
+* indexes and constraints,
+* and type conversion information.
+
+The ORM caches these model definitions so that reflection only occurs once for each registered type.
+
+Manual registration using #TOrm.RegisterType is still available when explicit control over model initialization is required.
+
+## Creating Tables
+
+Once a model has been registered, the ORM can generate the corresponding database table automatically.
+
+```blitzmax
+orm.CreateTable("TUser")
+```
+
+The ORM builds the appropriate SQL for the active database dialect and executes it against the database.
+
+For the `TUser` example above, the generated schema would resemble:
+
+```sql
+CREATE TABLE users (
+	id BIGINT PRIMARY KEY,
+	name TEXT NOT NULL,
+	email TEXT UNIQUE NOT NULL,
+	age INTEGER NOT NULL,
+	is_active BOOLEAN NOT NULL
+)
+```
+
+although the exact SQL varies slightly between database backends.
+
+Indexes and unique constraints are also created automatically from model metadata.
+
+Automatic table generation is especially useful during development and testing, where schemas can be derived directly from BlitzMax model definitions without maintaining separate SQL files.
+
+
+## Saving and Loading Objects
+
+Once a DAO has been created and the database table exists, objects can be persisted directly.
+
+```blitzmax id="2z4s7w"
+Local user:TUser = New TUser
+
+user.name = "Alice"
+user.email = "alice@example.com"
+user.age = 30
+user.isActive = True
+
+users.Save(user)
+```
+
+The ORM automatically generates and executes an insert statement using the values currently stored in the object fields.
+
+If the model contains an auto-generated primary key:
+
+```blitzmax id="xtb7er"
+Field id:Long { pk auto }
+```
+
+the generated identifier is automatically assigned back into the object after insertion.
+
+```blitzmax id="xrl0z7"
+Print user.id
+```
+
+The exact mechanism used to retrieve generated identifiers depends on the active database dialect. For example, SQLite uses the database connection's last inserted row id, while PostgreSQL uses a `RETURNING` clause internally.
+
+Saving an object inserts a new row into the database. To modify an existing row, use #TOrmDao.Update.
+
+```blitzmax id="v2a83l"
+user.age = 31
+
+users.Update(user)
+```
+
+Updates are based on the model's primary key. The ORM generates an update statement that writes all persisted fields back to the database for the matching row.
+
+The ORM intentionally does not attempt to track field-level changes automatically. Unlike some larger ORM frameworks, objects are not attached to a persistence session and no hidden dirty-checking occurs. Changes become persistent only when #TOrmDao.Update is called explicitly.
+
+This keeps persistence behaviour predictable and avoids the complexity of implicit update tracking.
+
+## Loading Objects
+
+Objects can be retrieved using their primary key with #TOrmDao.FindById.
+
+```blitzmax id="wqitph"
+Local loaded:TUser = users.FindById(user.id)
+```
+
+If a matching row exists, the ORM creates a new `TUser` instance and populates its fields automatically from the database row.
+
+If no matching row exists, `Null` is returned.
+
+```blitzmax id="l7j9s4"
+If Not loaded Then
+	Print "User not found"
+End If
+```
+
+Internally, the ORM uses reflection to reconstruct the object from the query result. Primitive values, strings, enums, decimals and JSON fields are all converted automatically back into their BlitzMax representations.
+
+## Removing Objects
+
+Objects can be removed from the database using #TOrmDao.Remove.
+
+```blitzmax id="t88d2p"
+users.Remove(user)
+```
+
+As with updates, removal uses the primary key value of the object to identify the corresponding database row.
+
+Attempting to update or remove a model without a primary key results in an exception, since the ORM has no reliable way to identify the target row.
+
+## Simple Queries
+
+In addition to primary key lookups, DAOs provide convenience methods for querying objects using SQL conditions.
+
+```blitzmax id="4v1h2c"
+Local adults:TArrayList<TUser> = users.FindWhere( ..
+	"age >= ?", ..
+	Params().AddInt(18))
+```
+
+The condition string is appended to the generated SQL `WHERE` clause, while parameter values are supplied separately through #TOrmParams.
+
+The ORM uses prepared statements internally, allowing the same query syntax to operate across different database backends.
+
+Single-object queries can be performed using #TOrmDao.FindOneWhere.
+
+```blitzmax id="2m9y5o"
+Local alice:TUser = users.FindOneWhere( ..
+	"email = ?", ..
+	Params().AddString("alice@example.com"))
+```
+
+Additional convenience methods are also available:
+
+| Method | Description |
+|---|---|
+| #TOrmDao.ExistsWhere | Checks whether matching rows exist |
+| #TOrmDao.CountWhere | Counts matching rows |
+| #TOrmDao.FindAll | Returns all rows for the model |
+| #TOrmDao.RemoveWhere | Removes rows matching a condition |
+
+The ORM does not attempt to hide SQL entirely. Query conditions are still written explicitly, but repetitive object mapping and parameter binding are handled automatically.
+
+
+## Transactions
+
+Most applications eventually need to perform multiple database operations as a single unit of work. If one operation fails, all related changes should be rolled back so that the database is not left in a partially updated state.
+
+The ORM provides transaction support through #TOrmTransaction.
+
+```blitzmax id="q4m2av"
+Using Local tx:TOrmTransaction = orm.StartTransaction()
+Do
+
+	Local user:TUser = New TUser
+	user.name = "Alice"
+	user.email = "alice@example.com"
+
+	users.Save(user)
+
+	tx.Commit()
+
+End Using
+```
+
+Transactions use BlitzMax `Using` blocks together with `IClosable` support. When the transaction leaves scope, the ORM automatically closes the transaction object.
+
+If the transaction has not been committed explicitly, the ORM performs a rollback automatically.
+
+This makes transaction behaviour predictable and safe by default.
+
+```blitzmax id="l8g6ze"
+Using Local tx:TOrmTransaction = orm.StartTransaction()
+Do
+
+	users.Save(user)
+
+	' no commit
+
+End Using
+```
+
+In this example, the insert is rolled back automatically when the block exits.
+
+Rollback can also be performed explicitly:
+
+```blitzmax id="31mxz2"
+Using Local tx:TOrmTransaction = orm.StartTransaction()
+Do
+
+	users.Save(user)
+
+	If validationFailed Then
+		tx.Rollback()
+		Return
+	End If
+
+	tx.Commit()
+
+End Using
+```
+
+Internally, #TOrmTransaction delegates to the underlying `Database.*` transaction support provided by the active database connection.
+
+If a database backend does not support transactions, attempting to start one results in an exception.
+
+The ORM intentionally keeps transaction handling explicit. Transactions are never started automatically behind the scenes, and database changes are not buffered in memory waiting for an implicit commit. Operations execute immediately against the database connection inside the active transaction scope.
+
+This design helps keep persistence behaviour understandable and avoids hidden state management.
+
+## JSON Fields
+
+Not every object maps naturally to a set of simple database columns. Sometimes a field contains structured data that is more convenient to store as a serialized value.
+
+Fields marked with `{ json }` are automatically serialized to JSON when persisted and reconstructed when loaded back from the database.
+
+For example:
+
+```blitzmax id="3yxq8n"
+Type TUserSettings
+
+	Field theme:String
+	Field notificationsEnabled:Int
+
+End Type
+
+Type TUser
+
+	Field id:Long { pk auto }
+
+	Field name:String
+
+	Field settings:TUserSettings { json nullable }
+
+End Type
+```
+
+The `settings` field is stored as JSON text within the database column rather than being expanded into separate relational columns.
+
+```blitzmax id="0r7x7d"
+Local user:TUser = New TUser
+
+user.name = "Alice"
+
+user.settings = New TUserSettings
+user.settings.theme = "dark"
+user.settings.notificationsEnabled = True
+
+users.Save(user)
+```
+
+When the object is loaded again, the JSON is automatically deserialized back into a `TUserSettings` instance.
+
+JSON serialization is implemented using `JConv`, allowing the ORM to support both standard object serialization and custom serializers.
+
+The ORM creates a default `JConv` instance automatically, but applications may also provide a custom configured instance when specialised serialization behaviour is required.
+
+This allows support for custom serializers, compact formatting, precision configuration and boxed primitive serializers.
+
+For example:
+
+```blitzmax id="lm4k7r"
+Local jconv:TJConv = New TJConvBuilder ..
+	.WithCompact() ..
+	.RegisterSerializer("TBox", New TBoxSerializer) ..
+	.Build()
+
+orm.SetJConv(jconv)
+```
+
+Because JSON fields are stored as text values, they work across different database backends without requiring native JSON column support. Some dialects may later choose to map JSON fields onto native database JSON types where appropriate.
+
+JSON fields provide a useful compromise between fully relational modelling and purely document-oriented storage, allowing complex object structures to remain embedded within otherwise relational models.
+
+
+## Enums
+
+The ORM supports BlitzMax enums automatically through reflection.
+
+Enum fields are normally stored using their underlying numeric representation.
+
+```blitzmax id="3j2s7f"
+Enum EUserStatus
+	New
+	Active
+	Disabled
+End Enum
+
+Type TUser
+
+	Field id:Long { pk auto }
+
+	Field name:String
+
+	Field status:EUserStatus
+
+End Type
+```
+
+In this example, the `status` field is persisted as its numeric ordinal value.
+
+Numeric enum storage is compact and efficient, and is generally the preferred default when enum values are stable.
+
+Flags enums are also supported automatically.
+
+```blitzmax id="6m2w4r"
+Enum EPermissions Flags
+	None = 0
+	Read = 1
+	Write = 2
+	Execute = 4
+End Enum
+```
+
+Combined flag values are stored using their underlying numeric bitmask representation.
+
+Because enum support is reflection-driven, no additional metadata is required simply to persist enums.
+
+## String-Based Enum Persistence
+
+In some situations, persisting the numeric ordinal of an enum may not be desirable. If enum values are later reordered or reassigned, previously stored numeric values may no longer represent the intended meaning.
+
+To avoid this, enums can instead be stored using their string representation by applying the `{ enum_string }` metadata.
+
+```blitzmax id="pw7o4v"
+Field status:EUserStatus { enum_string }
+```
+
+The ORM then persists values such as:
+
+```text id="yk6m5f"
+Active
+Disabled
+```
+
+rather than numeric ordinals.
+
+Flags enums are serialized using BlitzMax's built-in string conversion support:
+
+```text id="m4k7pa"
+Read|Write
+Read|Execute
+```
+
+and are automatically reconstructed when loaded from the database.
+
+String enum persistence is more readable and resilient to ordinal changes, although renaming enum values may still affect compatibility with existing stored data.
+
+## Indexes
+
+Indexes can be declared directly on fields using metadata.
+
+```blitzmax id="1f8v9z"
+Field email:String { unique }
+```
+
+Unique fields automatically create a unique index or constraint.
+
+Regular indexes can be created using `{ index }`.
+
+```blitzmax id="r4x2ew"
+Field surname:String { index }
+```
+
+During schema creation, the ORM automatically generates the required index statements for the active database dialect.
+
+Multiple fields can also participate in a composite index by sharing the same index name.
+
+```blitzmax id="d7q3nb"
+Type TPerson
+
+	Field firstName:String { index = "idx_name" }
+	Field lastName:String { index = "idx_name" }
+
+End Type
+```
+
+This produces a multi-column index covering both fields.
+
+Composite indexes are particularly useful when queries frequently filter or order by combinations of columns.
+
+Currently, composite index column ordering follows the declaration order of fields within the type.
+
+## Schema Validation
+
+The ORM can validate registered models against the current database schema during application startup.
+
+```blitzmax id="rm8p2a"
+Local report:TOrmSchemaValidationReport = orm.ValidateOnStartup()
+
+If Not report.IsValid() Then
+	Print report.ToString()
+	End
+End If
+```
+
+Validation checks whether:
+
+* required tables exist,
+* expected columns are present,
+* and indexes and constraints are compatible with the registered model definitions.
+
+This is especially useful during development, where model definitions may evolve over time.
+
+The ORM intentionally does not attempt to perform automatic schema migrations. Instead, validation helps identify mismatches between the application model and the existing database schema so that changes can be reviewed explicitly.
+
+This avoids the risks associated with automatic destructive schema modifications while still providing early detection of schema problems.
+
+## Database Independence
+
+One of the primary goals of the ORM is to minimise the amount of application code that depends on a specific database backend.
+
+Internally, SQL generation is delegated to a database dialect implementation. Each dialect handles backend-specific details such as:
+
+* identifier quoting,
+* auto-generated primary keys,
+* placeholder syntax,
+* boolean handling,
+* native type mappings,
+* and generated SQL variations.
+
+For example, SQLite and PostgreSQL use different parameter syntaxes internally, but ORM queries continue to use a consistent placeholder style:
+
+```blitzmax id="78uxgm"
+users.FindWhere( ..
+	"age >= ? AND is_active = ?", ..
+	Params().AddInt(18).AddBool(True))
+```
+
+The dialect transparently rewrites placeholders and SQL where required for the target backend.
+
+This allows most application persistence code to remain unchanged even when switching databases.
+
+The ORM does not attempt to hide database concepts entirely, however. SQL conditions remain visible within query APIs, and applications may still execute raw SQL directly through the underlying database connection whenever necessary.
+
+The intention is portability without sacrificing transparency or control.
+
+
+## Ordering and Limiting Results
+
+Queries often need to return results in a predictable order or restrict the number of rows returned.
+
+The ORM provides ordering support through #TOrmOrder.
+
+For example:
+
+```blitzmax id="1x4e9f"
+Local usersByAge:TArrayList<TUser> = users.FindAll( ..
+	TOrmOrder.By("age").Asc())
+```
+
+or descending order:
+
+```blitzmax id="4n8qzc"
+Local oldestFirst:TArrayList<TUser> = users.FindAll( ..
+	TOrmOrder.By("age").Desc())
+```
+
+Ordering can also be combined with filtered queries:
+
+```blitzmax id="s9u3wp"
+Local adults:TArrayList<TUser> = users.FindWhere( ..
+	"age >= ?", ..
+	Params().AddInt(18), ..
+	TOrmOrder.By("name").Asc())
+```
+
+The ORM validates ordering fields against the registered model definition before generating SQL. Attempting to order by an unknown field results in an exception rather than silently generating invalid SQL.
+
+## Limiting Query Results
+
+Queries may optionally specify a limit and offset.
+
+```blitzmax id="1m3h7k"
+Local results:TArrayList<TUser> = users.FindAll( ..
+	TOrmOrder.By("name").Asc(), ..
+	10)
+```
+
+This returns only the first ten rows.
+
+An offset may also be supplied:
+
+```blitzmax id="u7v4pm"
+Local results:TArrayList<TUser> = users.FindAll( ..
+	TOrmOrder.By("name").Asc(), ..
+	10, ..
+	20)
+```
+
+which skips the first twenty rows before returning the next ten.
+
+The same functionality is available for #TOrmDao.FindWhere.
+
+```blitzmax id="r2y8na"
+Local results:TArrayList<TUser> = users.FindWhere( ..
+	"age >= ?", ..
+	Params().AddInt(18), ..
+	TOrmOrder.By("name").Asc(), ..
+	25, ..
+	50)
+```
+
+Internally, the ORM generates the appropriate `ORDER BY`, `LIMIT` and `OFFSET` clauses for the active database dialect.
+
+Ordering should generally be specified whenever limits or offsets are used, otherwise result ordering may depend on database-specific behaviour.
+
+## Nullable Fields and Primitive Types
+
+BlitzMax primitive types such as `Int`, `Long`, `Float` and `Double` are value types rather than object references. As a result, they cannot represent `Null`.
+
+Primitive ORM fields are therefore implicitly non-nullable.
+
+```blitzmax id="1x7j5m"
+Field age:Int
+```
+
+always contains a value, even if that value is zero.
+
+Object and reference types, however, may be nullable:
+
+```blitzmax id="6h8s2p"
+Field settings:TUserSettings { nullable }
+```
+
+When a nullable object field contains `Null`, the ORM stores a database `NULL` value. When loading rows, database `NULL` values are reconstructed as `Null` object references.
+
+Attempting to treat primitive fields as nullable is not supported unless wrapped in a dedicated boxed type.
+
+This distinction is important when designing schemas and deciding how missing or optional values should be represented within application models.
+
+
+## Error Handling
+
+Database operations may fail for many reasons. Queries can contain invalid SQL, constraints may be violated, connections may be unavailable, or schema definitions may not match the current database state.
+
+The ORM reports such failures using exceptions derived from #TOrmException.
+
+For example, attempting to insert a duplicate value into a unique column:
+
+```blitzmax id="f9m2kq"
+Field email:String { unique }
+```
+
+may produce an exception when the database rejects the insert.
+
+```blitzmax id="m5y7da"
+Try
+
+	users.Save(user)
+
+Catch ex:TOrmException
+
+	Print ex.ToString()
+
+End Try
+```
+
+The ORM attempts to include useful diagnostic information in raised exceptions, including the failing SQL statement where appropriate.
+
+Database-specific failures are exposed through #TOrmDatabaseException, which wraps the underlying database error information provided by the active `Database.*` module.
+
+This includes details such as:
+
+* the database error message,
+* native database error codes,
+* and the SQL statement involved in the failure.
+
+Because the ORM builds upon the existing `Database.*` APIs rather than hiding them completely, low-level database information remains accessible when debugging problems.
+
+## Prepared Statements and Parameters
+
+The ORM uses prepared statements internally for all parameterized queries.
+
+Rather than embedding values directly into SQL strings, parameter values are supplied separately using #TOrmParams.
+
+```blitzmax id="2r7v9j"
+users.FindWhere( ..
+	"age >= ? AND is_active = ?", ..
+	Params() ..
+		.AddInt(18) ..
+		.AddBool(True))
+```
+
+Prepared statements improve security by helping prevent SQL injection vulnerabilities and also allow database backends to optimize repeated query execution.
+
+The ORM standardizes on `?` placeholders within query conditions regardless of database backend.
+
+For example:
+
+```blitzmax id="9m3wzc"
+"name = ?"
+```
+
+PostgreSQL internally uses numbered placeholders such as `$1`, `$2` and so on, but the ORM rewrites placeholders automatically through the active dialect implementation.
+
+Applications should therefore always use `?` placeholders when interacting with ORM query APIs.
+
+When a literal `?` character is required inside SQL, it can be escaped using `??`.
+
+This is primarily useful for PostgreSQL JSON operators, which use `?` as part of their syntax.
+
+```blitzmax id="4x8u2d"
+"metadata ?? 'enabled'"
+```
+
+The ORM rewrites this internally so that the database receives the correct literal operator while still processing actual parameter placeholders correctly.
+
+## Accessing the Underlying Database Connection
+
+Although the ORM automates object persistence, the underlying database connection remains fully accessible.
+
+```blitzmax id="8v4m2f"
+Local db:TDBConnection = orm.db
+```
+
+This allows applications to execute raw SQL directly whenever required.
+
+```blitzmax id="1q7x8s"
+Local query:TDatabaseQuery = db.ExecuteQuery( ..
+	"SELECT COUNT(*) FROM users")
+```
+
+The ORM is intentionally designed to coexist with direct database access rather than replace it entirely.
+
+This can be useful for:
+
+* highly specialised queries,
+* reporting,
+* bulk operations,
+* database administration tasks,
+* or performance-sensitive code paths.
+
+The ORM should be viewed as a convenience layer for common persistence operations rather than a restriction preventing direct SQL usage.
+
+Applications remain free to combine ORM-managed persistence with traditional SQL queries wherever appropriate.
+
+## Design Philosophy
+
+#Database.Orm is intentionally designed as a lightweight persistence layer rather than a large application framework.
+
+The ORM automates repetitive persistence tasks such as:
+
+* object mapping,
+* SQL generation,
+* parameter binding,
+* result reconstruction,
+* and schema creation,
+
+while still keeping database behaviour explicit and understandable.
+
+Unlike some larger ORM systems, the ORM does not attempt to:
+
+* hide SQL completely,
+* track hidden object state,
+* generate automatic migrations,
+* or build large persistence session graphs behind the scenes.
+
+Objects are saved explicitly. Transactions are started explicitly. Queries remain visible. SQL can still be written directly whenever needed.
+
+This design keeps persistence behaviour predictable and avoids the complexity often associated with large ORM frameworks.
+
+The ORM is intended to provide a practical middle ground between writing every database query manually and adopting a fully abstracted persistence framework.
+
+Applications retain direct control over their database behaviour while still benefiting from reflection-driven persistence, schema generation and database portability.
+
