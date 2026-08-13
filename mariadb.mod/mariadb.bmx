@@ -534,7 +534,8 @@ Type TMySQLResultSet Extends TQueryResultSet
 				qf.precision = bmx_mysql_field_decimals(_field)
 				rec.setField(i, qf)
 
-				bmx_mysql_inbind(selectBindings, i, _field, mySQLFields[i].dataValue, Varptr mySQLFields[i].dataLength, Varptr mySQLFields[i].isNull, ty)
+				Local mysqlField:TMySQLField = mySQLFields[i]
+				bmx_mysql_inbind(selectBindings, i, _field, mysqlField.dataValue, Varptr mysqlField.dataLength, Varptr mysqlField.isNull, ty)
 			Next
 
 		End If
@@ -590,13 +591,17 @@ Type TMySQLResultSet Extends TQueryResultSet
 
 				Select values[i].kind()
 					Case DBTYPE_INT
-						bmx_mysql_bind_int(parameterBindings, i, Varptr TDBInt(values[i]).value, nullsPtr)
+						Local intValue:TDBInt = TDBInt(values[i])
+						bmx_mysql_bind_int(parameterBindings, i, Varptr intValue.value, nullsPtr)
 					Case DBTYPE_FLOAT
-						bmx_mysql_bind_float(parameterBindings, i, Varptr TDBFloat(values[i]).value, nullsPtr)
+						Local floatValue:TDBFloat = TDBFloat(values[i])
+						bmx_mysql_bind_float(parameterBindings, i, Varptr floatValue.value, nullsPtr)
 					Case DBTYPE_DOUBLE
-						bmx_mysql_bind_double(parameterBindings, i, Varptr TDBDouble(values[i]).value, nullsPtr)
+						Local doubleValue:TDBDouble = TDBDouble(values[i])
+						bmx_mysql_bind_double(parameterBindings, i, Varptr doubleValue.value, nullsPtr)
 					Case DBTYPE_LONG
-						bmx_mysql_bind_long(parameterBindings, i, Varptr TDBLong(values[i]).value, nullsPtr)
+						Local longValue:TDBLong = TDBLong(values[i])
+						bmx_mysql_bind_long(parameterBindings, i, Varptr longValue.value, nullsPtr)
 					Case DBTYPE_STRING
 						local s:Byte Ptr = values[i].getString().ToUTF8String()
 						strings[i] = s

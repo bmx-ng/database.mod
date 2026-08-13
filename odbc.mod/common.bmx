@@ -221,20 +221,7 @@ Const SQL_NULL_DATA:Int = -1
 Const SQL_DATA_AT_EXEC:Int = -2
 Const SQL_NO_TOTAL:Int = -4
 
-?win32
-Extern "win32"
-?linux
 Extern
-?macos
-Extern
-?
-'	Function SQLAllocHandle:Int(handleType:Int, inputHandle:Byte Ptr, outputHandle:Byte Ptr)
-
-
-
-End Extern
-
-Extern	
 	Function bmx_odbc_SQLAllocHandle:Int(_type:Int, a:Byte Ptr, handle:Byte Ptr)
 	Function bmx_odbc_freeEnvHandle:Int(handle:Byte Ptr)
 	Function bmx_odbc_freeStmtHandle:Int(handle:Byte Ptr)
