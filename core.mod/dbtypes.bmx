@@ -1157,7 +1157,7 @@ Type TDBDate Extends TDBDateBase
 	bbdoc: Formats the DateTime using the specified formatting
 	End Rem
 	Method format:String(fmt:String = "%Y-%m-%d")
-		Return _formatDate:String(fmt, _year, _month, _day, 0, 0, 0)
+		Return _formatDate(fmt, _year, _month, _day, 0, 0, 0)
 	End Method
 
 	Method getString:String()
@@ -1286,7 +1286,7 @@ Type TDBDateTime Extends TDBDateBase
 	bbdoc: Formats the DateTime using the specified formatting
 	End Rem
 	Method Format:String(fmt:String = "%Y-%m-%d %H:%M:%S")
-		Return _formatDate:String(fmt, _year, _month, _day, _hour, _minute, _second, _microsecond)
+		Return _formatDate(fmt, _year, _month, _day, _hour, _minute, _second, _microsecond)
 	End Method
 
 	Method getString:String()
@@ -1410,7 +1410,7 @@ Type TDBTime Extends TDBDateBase
 	bbdoc: Formats the DateTime using the specified formatting
 	End Rem
 	Method Format:String(fmt:String = "%H:%M:%S")
-		Return _formatDate:String(fmt, 1900, 1, 1, _hour, _minute, _second, _microsecond)
+		Return _formatDate(fmt, 1900, 1, 1, _hour, _minute, _second, _microsecond)
 	End Method
 
 	Method getString:String()
@@ -1502,7 +1502,7 @@ Type TDBDecimal Extends TDBType
 
 	Method setString(v:String, isNull:Int = False)
 		If Not v And isNull Then
-			value = Null
+			value = TDecimal(Null)
 			_isNull = True
 		Else
 			value = Decimal(v)
@@ -1521,7 +1521,7 @@ Type TDBDecimal Extends TDBType
 	End Method
 
 	Method clear()
-		value = Null
+		value = TDecimal(Null)
 		_isNull = True
 	End Method
 	

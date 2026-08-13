@@ -603,7 +603,8 @@ Type TODBCResultSet Extends TQueryResultSet
 						If Not values[i] Then
 							values[i] = New TDBInt
 						End If
-						result = bmx_odbc_SQLBindParameter_int(stmtHandle, i + 1, Varptr TDBInt(values[i]).value, Varptr isNull[i])
+						Local intValue:TDBInt = TDBInt(values[i])
+						result = bmx_odbc_SQLBindParameter_int(stmtHandle, i + 1, Varptr intValue.value, Varptr isNull[i])
 					Case DBTYPE_FLOAT
 						If Not values[i] Then
 							values[i] = New TDBDouble
@@ -615,18 +616,21 @@ Type TODBCResultSet Extends TQueryResultSet
 							values[i].clear()
 							values[i] = d
 						End If
-						result = bmx_odbc_SQLBindParameter_double(stmtHandle, i + 1, Varptr TDBDouble(values[i]).value, Varptr isNull[i])
+						Local floatValue:TDBDouble = TDBDouble(values[i])
+						result = bmx_odbc_SQLBindParameter_double(stmtHandle, i + 1, Varptr floatValue.value, Varptr isNull[i])
 					Case DBTYPE_DOUBLE
 						If Not values[i] Then
 							values[i] = New TDBDouble
 						End If
-						result = bmx_odbc_SQLBindParameter_double(stmtHandle, i + 1, Varptr TDBDouble(values[i]).value, Varptr isNull[i])
+						Local doubleValue:TDBDouble = TDBDouble(values[i])
+						result = bmx_odbc_SQLBindParameter_double(stmtHandle, i + 1, Varptr doubleValue.value, Varptr isNull[i])
 					Case DBTYPE_LONG
 						If Not values[i] Then
 							values[i] = New TDBLong
 						End If
 
-						result = bmx_odbc_SQLBindParameter_long(stmtHandle, i + 1, Varptr TDBLong(values[i]).value, Varptr isNull[i])
+						Local longValue:TDBLong = TDBLong(values[i])
+						result = bmx_odbc_SQLBindParameter_long(stmtHandle, i + 1, Varptr longValue.value, Varptr isNull[i])
 					Case DBTYPE_STRING
 						If Not values[i] Then
 							values[i] = New TDBString
